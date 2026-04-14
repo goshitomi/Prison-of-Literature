@@ -1,808 +1,821 @@
-# Prison of Literature — 구현 플랜
+# Prison of Literature — 전면 리디자인 플랜 v3
 
-> 작성일: 2026-04-14  
-> 기준 커밋: `01b6821` (main)  
-> 기획서: Google Docs `1cUHVCa8spCQHHQcNnjNUjxd4USRzVD-KhSi7pG48pTA`
->
-> **구현 상태: ✅ 완료 (2026-04-14)**
-
----
-
-## 0. 전제: 지금 코드베이스 상태
-
-현재 코드는 대부분 기획 방향과 잘 맞는다. 구조적으로 완성된 것들:
-
-- 홈 랜딩 페이지 (히어로, 티커, 컨셉, 상태 키)
-- 수감자 명부 리스트 뷰 (테이블)
-- 갤러리 뷰 (흑백↔컬러 호버)
-- 상세 페이지 (Inmate File)
-- 접견 신청 폼 (DENIED / IN PROGRESS / APPROVED)
-- NLK API 프록시
-
-**빠진 것들** (이 플랜이 해결할 것들):
-
-| 항목 | 우선순위 |
-|---|---|
-| 프로젝트 구조 재편 (서브디렉토리 제거) + GitHub/Vercel 재배포 | P0 — 배포 전 필수 |
-| 확장형 전체화면 네비게이터 | P1 |
-| About 전경 사진 + 기획서 본문 텍스트 | P1 |
-| 상세 페이지 메타데이터 은유 완성 (판형→신장/체중, 발행일→생년월일) | P2 |
-| 갤러리 실제 표지 이미지 | P2 |
-| API 키 환경변수화 | P0 — 보안 |
+> 작성일: 2026-04-14 (v3 업데이트)  
+> 기준 커밋: `f4485a9` (main)  
+> 레퍼런스: Roma Publications / Shortnotice Studio / Cyberfeminismindex / Faceted Search  
+> 변경 사항 (v2→v3): 썸네일뷰 추가, 리스트↔썸네일 토글 구현 전략 반영
 
 ---
 
-## 1. ✅ P0 — 프로젝트 구조 재편 & API 키 환경변수화 (완료)
+## 0. 배포 구조 확인 — 어디에 업데이트해야 웹에 반영되는가
 
-### 1-1. 왜 이게 P0인가
+### 결론: `Documents/GitHub/Prison-of-Literature`만 수정하면 된다
 
-이전 배포가 계속 실패한 이유는 단 하나다:
+| 항목 | `Documents/GitHub/Prison-of-Literature` | `Downloads/Prison-of-Literature` |
+|---|---|---|
+| Git remote | `git@github.com:goshitomi/Prison-of-Literature.git` (SSH) | `https://github.com/goshitomi/Prison-of-Literature.git` (HTTPS) |
+| 역할 | **실제 작업 디렉토리** (Claude Code 세션 기준 워킹 디렉토리) | 동일 GitHub 레포의 HTTPS 클론 (백업/참고용) |
+| Vercel 연동 | GitHub push → Vercel 자동 빌드/배포 | 이 폴더에서 push해도 동일 레포로 가지만 충돌 위험 |
 
+**자동 배포 흐름:**
 ```
-Prison-of-Literature/           ← GitHub repo 루트
-└── Prison-of-Literature_Folder/ ← Next.js 루트 (서브디렉토리)
-```
-
-Vercel은 repo 루트에서 `package.json`을 찾는다. 서브디렉토리에 있으면 `rootDirectory` 설정이 필요한데, 이 설정값과 실제 경로가 계속 충돌했다. vercel.json을 옮기거나, rootDirectory를 수동 설정해도 빌드 컨텍스트가 꼬였다.
-
-**해결책: Next.js 파일을 Git 루트로 올린다.**
-
-### 1-2. 마이그레이션 절차
-
-```bash
-# 1. 서브디렉토리 파일을 루트로 이동
-mv Prison-of-Literature_Folder/lib .
-mv Prison-of-Literature_Folder/pages .
-mv Prison-of-Literature_Folder/public .
-mv Prison-of-Literature_Folder/next.config.js .
-mv Prison-of-Literature_Folder/package.json .
-mv Prison-of-Literature_Folder/package-lock.json .
-mv Prison-of-Literature_Folder/.gitignore .
-
-# 2. 서브디렉토리 삭제
-rm -rf Prison-of-Literature_Folder
-
-# 3. node_modules 재설치
-npm install
-
-# 4. 빌드 테스트
-npm run build
+Documents/GitHub/Prison-of-Literature에서 git push
+→ github.com/goshitomi/Prison-of-Literature (main 브랜치)
+→ Vercel이 GitHub webhook 감지
+→ npm run build → 자동 배포
 ```
 
-이후 Git 루트 구조:
-```
-Prison-of-Literature/
-├── lib/helpers.js
-├── pages/
-│   ├── index.js
-│   ├── about.js
-│   ├── books.js
-│   └── api/books.js
-├── public/
-├── next.config.js
-├── package.json
-├── .gitignore
-└── .env.local
-```
-
-### 1-3. API 키 환경변수화
-
-**수정 파일**: `pages/api/books.js`
-
-현재:
-```javascript
-const API_KEY = "92c6104efdf269a89493d8f294b16d85b566e78804977e0793dc3b202192d6c1";
-```
-
-변경 후:
-```javascript
-const API_KEY = process.env.NLK_API_KEY;
-```
-
-`.env.local` (Git에 커밋하지 않음):
-```
-NLK_API_KEY=92c6104efdf269a89493d8f294b16d85b566e78804977e0793dc3b202192d6c1
-```
-
-### 1-4. GitHub 저장소 신규 생성
-
-```bash
-# 루트에서
-git init
-git add .
-git commit -m "Initial commit: restructure to repo root"
-```
-
-GitHub에서 새 repository `prison-of-literature` 생성 후:
-```bash
-git remote add origin https://github.com/<username>/prison-of-literature.git
-git push -u origin main
-```
-
-### 1-5. Vercel 재배포
-
-1. vercel.com → New Project
-2. GitHub 저장소 `prison-of-literature` import
-3. **Framework Preset**: Next.js (자동 감지)
-4. **Root Directory**: `.` (기본값, 변경하지 않는다)
-5. **Environment Variables** 추가:
-   - Key: `NLK_API_KEY`
-   - Value: `92c6104efdf269a89493d8f294b16d85b566e78804977e0793dc3b202192d6c1`
-6. Deploy
-
-> 트레이드오프: `rootDirectory`를 수동 설정하지 않고 기본값을 그대로 사용하는 것이 핵심. Vercel의 자동 감지가 repo 루트의 `package.json`과 `next.config.js`를 찾는다.
+Downloads 폴더는 절대 수정하지 않는다. 혼선 방지를 위해 사용 후 삭제를 권장한다.
 
 ---
 
-## 2. ✅ P1 — 확장형 전체화면 네비게이터 (완료)
+## 1. 현황 분석 — 무엇이 문제인가
 
-### 2-1. 기획서 요구사항
+### 1-1. 현재 사이트 구조
 
-- 레퍼런스: graffitiremovals.org
-- 평소: 고정 헤더 (현재와 유사)
-- **Arrow(▸) 버튼 클릭 → 전체 화면 네비게이터 오버레이 확장**
-- 확장 상태에서 각 메뉴 항목 호버 시 **해당 항목이 세로로 더 늘어나는 인터랙션**
+```
+/ (index.js)       → 전면 히어로 랜딩 페이지 (풀스크린 타이포 + 티커 + 컨셉 섹션)
+/books (books.js)  → 수감자 명부 (리스트뷰 + 갤러리뷰 — 둘 다 로딩 불량)
+/about (about.js)  → 프로젝트 소개 (2컬럼 한영 병렬)
+```
 
-### 2-2. 구현 접근법
+### 1-2. 확인된 문제점 (feedback.md 기반)
 
-`pages/_app.js`를 생성하여 전역 레이아웃 컴포넌트로 추출. 현재 각 페이지에 헤더가 인라인으로 있는데, 이를 공통 컴포넌트로 분리한다.
+| 문제 | 심각도 | 처리 방향 |
+|---|---|---|
+| 리스트뷰 데이터 로딩 불량 | Critical | index.js 전면 재작성으로 해결 |
+| 갤러리뷰 데이터 로딩 불량 | Critical | 기존 갤러리뷰 삭제 → 새 썸네일뷰로 대체 |
+| 검정 배경 → 흰 배경으로 전환 | Major | 전면 테마 교체 |
+| 홈이 히어로 페이지 → 즉시 리스트로 | Major | UX 구조 재설계 |
+| 검색바 'Search Inmate' 없음 | Major | 검색 UX 신규 구현 |
+| Faceted Search 미구현 | Major | 필터 시스템 신규 구현 |
 
-**파일 구조 변경**:
+### 1-3. 현재 테마 vs 목표 테마
+
+| 항목 | 현재 | 목표 |
+|---|---|---|
+| 배경 | `#0D0D0D` (거의 검정) | `#FFFFFF` (흰색) |
+| 텍스트 | `#F5F0E8` (크림화이트) | `#111111` (거의 검정) |
+| 분위기 | 다크/에디토리얼/미스테리 | 클린/아카이브/레퍼런스 도서관 |
+| 레이아웃 | 히어로 → 스크롤 내려가며 정보 | 즉시 목록(리스트/썸네일 토글) |
+| 네비게이션 | 풀스크린 오버레이 메뉴 | 미니멀 고정 헤더 |
+
+---
+
+## 2. 레퍼런스 분석
+
+### 2-1. Roma Publications — 리스트뷰 주 레퍼런스
+`https://www.romapublications.org/?book=gerlach-en-koop`
+
+**핵심 패턴:**
+- 흰 배경(`#FFFFFF`), 검정 텍스트. 별도 랜딩 없이 즉시 테이블 표시
+- 상단 실시간 텍스트 필터 인풋 (`tableSearch` 패턴)
+- **정렬 가능한 컬럼 헤더** — 클릭 시 ↑↓ 토글
+- 컬럼 구성: No. / TITLE / ARTIST(S) / PAGES / SIZE / YEAR / ORDER
+- 핑크/살몬(`#FFBBBB`) hover accent, 각진 모서리(border-radius: 0)
+- 어바웃 섹션은 아코디언으로 접혀 있음
+- 타이포: 클린 sans-serif (Arial/Helvetica 계열)
+
+**Prison of Literature 차용:**
+- 흰 배경 + 정렬 가능 테이블
+- 실시간 텍스트 필터
+- 컬럼 구조 → 수감자 메타데이터로 매핑
+- 최소한의 헤더 (로고 + About 링크)
+
+---
+
+### 2-2. Shortnotice Studio — 썸네일뷰 주 레퍼런스
+`https://shortnotice.studio/index/`
+
+**핵심 패턴:**
+- 다단 플렉스 그리드 (데스크톱 고정 컬럼 / 모바일 단일 컬럼 자동 전환)
+- 카드 간격: `gap: 29px`, 모바일 하단 마진: `2%`
+- 카드 구성: 이미지 + 타이틀 + 설명/태그
+- 이미지: lazy-load, `object-fit: cover`, 비율 `contain-intrinsic-size: 3000px 1500px` (가로형 2:1 기본)
+- 진입 애니메이션: `opacity: 0 → 1`, `transition: all 400ms ease-out`
+- **필터: pill 형태 태그 버블** (`border-radius: 100px`)
+  - active 상태: `opacity 0.5 → 1`
+- 검색: 흰색 반투명 오버레이 (`rgba(255,255,255,0.85)`)
+- 타이포: ABCDiatype-Black, 텍스트 `#d1d1d1` (다크 배경 기반)
+
+**Prison of Literature 차용:**
+- 다단 그리드 + `gap` 기반 간격
+- lazy-load fade-in 진입 애니메이션
+- pill 태그 필터 (썸네일뷰에서 패싯 필터를 태그 버블로 표현)
+- hover 시 카드 오버레이로 메타데이터 노출
+
+**핵심 차이점 — 이미지 없음 문제:**  
+NLK API는 표지 이미지를 제공하지 않는다. 따라서 썸네일뷰는 실제 이미지 대신 **CSS로 생성한 "죄수복(Prison Uniform) 카드"** 를 사용한다. 이는 프로젝트 개념(모든 책이 표지를 벗고 규격화된 죄수복을 입는다)과 정확히 일치하여 기능적 제약이 오히려 개념적 강점이 된다.
+
+---
+
+### 2-3. Cyberfeminism Index — 구조 보조 레퍼런스
+`https://cyberfeminismindex.com/`
+
+**Prison of Literature 차용:**
+- 홈 = 즉시 인덱스 패턴 (별도 랜딩 없음)
+- 좌측 패싯 필터 패널 구조
+
+---
+
+### 2-4. Faceted Search 요건
+복수의 독립 필터를 동시에 적용하는 검색 시스템.
+
+**적용할 패싯:**
+- **접견 상태**: 접견가능 / 접견중 / 접견불가 (체크박스 or pill 태그)
+- **발행 연도**: 범위 인풋 (yearFrom ~ yearTo)
+- **자료 분류**: 일반 / 특별소장 / 접근제한 (체크박스 or pill 태그)
+- **텍스트 검색**: 수감자명(제목) / 저자명 / ISBN ("Search Inmate" 인풋)
+
+---
+
+## 3. 목표 아키텍처
+
+### 3-1. 페이지 구조 재편
+
+```
+현재:                       변경 후:
+/ (히어로)         →       / (즉시 리스트뷰 — 토글로 썸네일뷰 전환)
+/books (리스트)    →       삭제 (/ 로 리다이렉트)
+/about             →       /about (경량화, 흰 배경)
+```
+
+### 3-2. 파일 구조
+
 ```
 pages/
-├── _app.js          ← 신규 생성 (전역 레이아웃 + 네비게이터 상태 관리)
-├── index.js         ← 헤더 코드 제거
-├── about.js         ← 헤더 코드 제거
-└── books.js         ← 헤더 코드 제거 (서브바는 유지)
+├── _app.js           ← 글로벌 스타일(흰 테마), 단순 헤더
+├── index.js          ← 메인 인덱스: 검색 + 패싯 + 뷰토글 + 리스트/썸네일
+├── about.js          ← 어바웃 (색상 값만 교체)
+└── api/
+    └── books.js      ← API 프록시 (q 파라미터 추가)
+
+lib/
+└── helpers.js        ← 색상 상수 업데이트
 ```
 
-**`pages/_app.js`**:
+### 3-3. 전체 레이아웃 와이어프레임
+
+```
+┌──────────────────────────────────────────────────────┐
+│  PRISON OF LITERATURE                        About   │  ← 고정 헤더 56px
+├──────────────────────────────────────────────────────┤
+│  수감자 명부 — 총 1,247,382명 수감 중                 │  ← 페이지 타이틀 + 카운터
+├──────────────────────────────────────────────────────┤
+│  [🔍 Search Inmate...]              [≡ LIST] [⊞ GRID]│  ← 검색바 + 뷰 토글
+├──────────┬───────────────────────────────────────────┤
+│ FILTERS  │  (리스트뷰)                                │
+│          │  NO.  수감자명        저자    발행  판형  상태│
+│ 접견상태  │  001  ──────────  ──────  2021   M   접견가능│
+│ □접견가능 │  002  ──────────  ──────  2019   L   접견중 │
+│ □접견중   │  003  ──────────  ──────  2018   S   접견불가│
+│ □접견불가 │  ...                                       │
+│          │  (썸네일뷰로 전환 시)                       │
+│ 발행연도  │  ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐               │
+│ [──~──]  │  │  │ │  │ │  │ │  │ │  │               │
+│          │  └──┘ └──┘ └──┘ └──┘ └──┘               │
+│ 자료분류  │  ┌──┐ ┌──┐ ┌──┐ ┌──┐ ┌──┐               │
+│ □일반     │  │  │ │  │ │  │ │  │ │  │               │
+│ □특별소장 │  └──┘ └──┘ └──┘ └──┘ └──┘               │
+│ □접근제한 │                                            │
+└──────────┴───────────────────────────────────────────┘
+```
+
+**모바일**: 패싯 필터는 "Filters ▼" 토글 버튼으로 접힘. 썸네일뷰는 2열로 축소.
+
+---
+
+## 4. 뷰 토글 설계
+
+### 4-1. 상태 관리
+
+```javascript
+// 기본값: 리스트뷰. URL 쿼리로 상태 유지 (공유/북마크 가능)
+const router = useRouter();
+const viewParam = router.query.view; // "list" | "grid"
+const [view, setView] = useState("list");
+
+useEffect(() => {
+  if (viewParam === "grid" || viewParam === "list") setView(viewParam);
+}, [viewParam]);
+
+function switchView(v) {
+  setView(v);
+  router.replace({ query: { ...router.query, view: v } }, undefined, { shallow: true });
+}
+```
+
+### 4-2. 토글 버튼 UI
 
 ```jsx
-import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
-import Link from "next/link";
+function ViewToggle({ view, onSwitch }) {
+  return (
+    <div style={{ display: "flex", gap: 2 }}>
+      {[
+        { id: "list", icon: "≡", label: "List" },
+        { id: "grid", icon: "⊞", label: "Grid" },
+      ].map(({ id, icon, label }) => (
+        <button
+          key={id}
+          onClick={() => onSwitch(id)}
+          title={label}
+          style={{
+            padding: "6px 12px",
+            fontSize: 14,
+            border: "1px solid",
+            borderColor: view === id ? "#111" : "#DDD",
+            background: view === id ? "#111" : "#FFF",
+            color: view === id ? "#FFF" : "#999",
+            cursor: "pointer",
+            transition: "all 0.15s",
+            lineHeight: 1,
+          }}
+        >
+          {icon}
+        </button>
+      ))}
+    </div>
+  );
+}
+```
 
-const FONTS =
-  "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;700&display=swap";
+---
 
-const DARK = "#0D0D0D";
-const CREAM = "#F5F0E8";
+## 5. 리스트뷰 설계 (Roma Publications 패턴)
 
-const NAV_ITEMS = [
-  { label: "Index",  href: "/books",  sub: "수감자 명부" },
-  { label: "About",  href: "/about",  sub: "프로젝트 소개" },
-  { label: "Search", href: null,      sub: "수감자 검색",  isSearch: true },
-];
+### 5-1. 테이블 컬럼 매핑
 
-export default function App({ Component, pageProps }) {
-  const router = useRouter();
-  const [navOpen, setNavOpen] = useState(false);
-  const [hoveredIdx, setHoveredIdx] = useState(null);
-  const [scrolled, setScrolled] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQ, setSearchQ] = useState("");
+| 컬럼 헤더 | 데이터 필드 | 정렬 | 비고 |
+|---|---|---|---|
+| No. | 행 순번 | ✗ | `001`, `002` … (tabular-nums) |
+| 수감자명 | `title` | ✓ | 최대 너비 280px, ellipsis |
+| 저자 | `creator` | ✓ | 없으면 "—" |
+| 발행 | `pubDate` (연도만) | ✓ | `slice(0,4)` |
+| 판형 | `prisonSize` | ✓ | S / M / L |
+| 수인번호 | `callNo` | ✓ | Courier New 폰트 |
+| 접견상태 | `status` | ✓ | StatusBadge 컴포넌트 |
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+### 5-2. 정렬 구현
 
-  // 라우트 변경 시 네비게이터 닫기
-  useEffect(() => {
-    setNavOpen(false);
-  }, [router.pathname]);
+```javascript
+const [sortCol, setSortCol] = useState("title");
+const [sortDir, setSortDir] = useState("asc");
 
-  // ESC 키
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === "Escape") { setNavOpen(false); setSearchOpen(false); }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+function toggleSort(col) {
+  if (sortCol === col) setSortDir(d => d === "asc" ? "desc" : "asc");
+  else { setSortCol(col); setSortDir("asc"); }
+}
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchQ.trim()) {
-      router.push(`/books?q=${encodeURIComponent(searchQ.trim())}`);
-      setSearchOpen(false);
-      setNavOpen(false);
-    }
-  };
+const sorted = [...filtered].sort((a, b) => {
+  const va = a[sortCol] ?? "";
+  const vb = b[sortCol] ?? "";
+  const cmp = typeof va === "number"
+    ? va - vb
+    : String(va).localeCompare(String(vb), "ko");
+  return sortDir === "asc" ? cmp : -cmp;
+});
+```
 
+### 5-3. 행 클릭 → 인라인 상세 확장
+
+행 클릭 시 `expandedId` 상태를 토글하여 바로 아래에 상세 행(`<tr colSpan>`) 삽입.
+
+```jsx
+function BookRow({ book, idx, expanded, onToggle }) {
   return (
     <>
-      {/* 폰트 */}
-      <Head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href={FONTS} rel="stylesheet" />
-      </Head>
-
-      <style jsx global>{`
-        /* reset + global */
-        *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
-        html { scroll-behavior: smooth; }
-        body {
-          font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
-          background: ${DARK};
-          color: ${CREAM};
-          -webkit-font-smoothing: antialiased;
-          overflow-x: hidden;
-        }
-        a { color: inherit; text-decoration: none; }
-        button { cursor: pointer; font-family: inherit; background: none; border: none; }
-        input, select, textarea { font-family: inherit; }
-
-        /* 확장 네비게이터 오버레이 */
-        .nav-overlay {
-          position: fixed;
-          inset: 0;
-          z-index: 150;
-          background: ${DARK};
-          display: flex;
-          flex-direction: column;
-          transform: translateY(-100%);
-          transition: transform 0.5s cubic-bezier(0.76, 0, 0.24, 1);
-        }
-        .nav-overlay.open {
-          transform: translateY(0);
-        }
-
-        /* 네비게이터 항목: 호버 시 세로 확장 */
-        .nav-item {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          padding: 0 48px;
-          border-bottom: 1px solid rgba(245,240,232,0.07);
-          cursor: pointer;
-          transition: flex 0.4s cubic-bezier(0.76, 0, 0.24, 1),
-                      background 0.2s;
-          overflow: hidden;
-        }
-        .nav-item:hover {
-          flex: 3;
-          background: rgba(245,240,232,0.02);
-        }
-        .nav-item .item-label {
-          font-family: 'Noto Serif KR', Georgia, serif;
-          font-size: clamp(32px, 6vw, 80px);
-          font-weight: 700;
-          color: rgba(245,240,232,0.15);
-          letter-spacing: -0.02em;
-          transition: color 0.25s;
-          line-height: 1;
-        }
-        .nav-item:hover .item-label {
-          color: ${CREAM};
-        }
-        .nav-item .item-sub {
-          font-size: 11px;
-          letter-spacing: 0.25em;
-          text-transform: uppercase;
-          color: rgba(245,240,232,0.2);
-          margin-top: 8px;
-          transition: color 0.25s;
-        }
-        .nav-item:hover .item-sub {
-          color: rgba(245,240,232,0.5);
-        }
-
-        /* 헤더 링크 hover 언더라인 */
-        .nav-link {
-          position: relative;
-          display: inline-block;
-          padding: 4px 0;
-          font-size: 12px;
-          letter-spacing: 0.15em;
-          text-transform: uppercase;
-          color: rgba(245,240,232,0.4);
-          transition: color 0.2s;
-        }
-        .nav-link::after {
-          content: '';
-          position: absolute;
-          bottom: 0; left: 0;
-          width: 0; height: 1px;
-          background: ${CREAM};
-          transition: width 0.25s ease;
-        }
-        .nav-link:hover { color: ${CREAM}; }
-        .nav-link:hover::after { width: 100%; }
-
-        /* 검색 오버레이 */
-        .search-overlay {
-          position: fixed; inset: 0;
-          background: rgba(0,0,0,0.97);
-          z-index: 200;
-          display: flex; flex-direction: column;
-          align-items: center; justify-content: center;
-          opacity: 0; pointer-events: none;
-          transition: opacity 0.25s ease;
-        }
-        .search-overlay.open { opacity: 1; pointer-events: all; }
-
-        /* 티커 */
-        @keyframes ticker {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .ticker-inner {
-          display: flex;
-          white-space: nowrap;
-          animation: ticker 28s linear infinite;
-        }
-
-        /* 로더 스피너 */
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* 공통 */
-        .divider { border: none; border-top: 1px solid rgba(245,240,232,0.08); margin: 0; }
-        .cta-link {
-          display: inline-flex; align-items: center; gap: 10px;
-          font-size: 13px; letter-spacing: 0.2em; font-weight: 500;
-          color: rgba(245,240,232,0.55); text-transform: uppercase;
-          border-bottom: 1px solid rgba(245,240,232,0.2);
-          padding-bottom: 2px;
-          transition: color 0.2s, border-color 0.2s;
-        }
-        .cta-link:hover { color: ${CREAM}; border-color: ${CREAM}; }
-        .cta-link .arrow { display: inline-block; transition: transform 0.2s; }
-        .cta-link:hover .arrow { transform: translateX(4px); }
-      `}</style>
-
-      {/* ── 검색 오버레이 ── */}
-      <div className={`search-overlay${searchOpen ? " open" : ""}`}>
-        <button
-          onClick={() => setSearchOpen(false)}
-          style={{ position: "absolute", top: 28, right: 32, color: "rgba(245,240,232,0.4)", fontSize: 28 }}
-          aria-label="닫기"
-        >×</button>
-        <div style={{ width: "100%", maxWidth: 640, padding: "0 24px" }}>
-          <div style={{ fontSize: 11, letterSpacing: "0.3em", color: "rgba(245,240,232,0.3)", marginBottom: 28, textTransform: "uppercase" }}>
-            수감자 검색 / Search Inmates
-          </div>
-          <form onSubmit={handleSearch} style={{ position: "relative" }}>
-            <input
-              autoFocus={searchOpen}
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              placeholder="수감자명, 저자, ISBN…"
-              style={{
-                width: "100%", background: "transparent",
-                border: "none", borderBottom: "1px solid rgba(245,240,232,0.2)",
-                color: CREAM, fontSize: 32,
-                fontFamily: "'Noto Serif KR', Georgia, serif",
-                padding: "12px 0", outline: "none",
-              }}
-            />
-            <button type="submit" style={{ position: "absolute", right: 0, bottom: 12, color: "rgba(245,240,232,0.4)", fontSize: 20 }}>→</button>
-          </form>
-          <div style={{ marginTop: 16, fontSize: 11, color: "rgba(245,240,232,0.2)", letterSpacing: "0.15em" }}>ESC로 닫기</div>
-        </div>
-      </div>
-
-      {/* ── 확장 네비게이터 오버레이 ── */}
-      <div className={`nav-overlay${navOpen ? " open" : ""}`}>
-        {/* 오버레이 헤더 */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          padding: "0 32px", height: 56,
-          borderBottom: "1px solid rgba(245,240,232,0.07)",
-          flexShrink: 0,
+      <tr onClick={() => onToggle(book.id)}
+        style={{
+          borderBottom: "1px solid #EBEBEB",
+          cursor: "pointer",
+          background: expanded ? "#FAFAFA" : "transparent",
+          transition: "background 0.1s",
         }}>
-          <Link href="/" style={{
-            fontFamily: "'Noto Serif KR', Georgia, serif",
-            fontSize: 13, fontWeight: 700, letterSpacing: "0.2em",
-            textTransform: "uppercase",
-          }}>
-            Prison of Literature
-          </Link>
-          <button
-            onClick={() => setNavOpen(false)}
-            style={{ color: "rgba(245,240,232,0.4)", fontSize: 28, lineHeight: 1 }}
-            aria-label="닫기"
-          >×</button>
-        </div>
-
-        {/* 메뉴 항목들 */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-          {NAV_ITEMS.map((item, i) => (
-            <div
-              key={i}
-              className="nav-item"
-              onMouseEnter={() => setHoveredIdx(i)}
-              onMouseLeave={() => setHoveredIdx(null)}
-              onClick={() => {
-                if (item.isSearch) { setNavOpen(false); setSearchOpen(true); }
-                else { router.push(item.href); }
-              }}
-            >
-              <div className="item-label">{item.label}</div>
-              <div className="item-sub">{item.sub}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── 고정 헤더 ── */}
-      <header style={{
-        position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-        padding: "0 32px", height: 56,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        background: (navOpen || scrolled) ? "rgba(13,13,13,0.97)" : "transparent",
-        borderBottom: (navOpen || scrolled) ? "1px solid rgba(245,240,232,0.07)" : "none",
-        backdropFilter: scrolled ? "blur(8px)" : "none",
-        transition: "background 0.3s",
-      }}>
-        <Link href="/" style={{
-          fontFamily: "'Noto Serif KR', Georgia, serif",
-          fontSize: 13, fontWeight: 700, letterSpacing: "0.2em",
-          textTransform: "uppercase",
-        }}>
-          Prison of Literature
-        </Link>
-
-        {/* 네비게이터 토글 버튼 */}
-        <button
-          onClick={() => setNavOpen(!navOpen)}
-          style={{
-            display: "flex", alignItems: "center", gap: 8,
-            color: "rgba(245,240,232,0.55)", fontSize: 11,
-            letterSpacing: "0.2em", textTransform: "uppercase",
-            transition: "color 0.2s",
-          }}
-          onMouseOver={(e) => e.currentTarget.style.color = CREAM}
-          onMouseOut={(e) => e.currentTarget.style.color = "rgba(245,240,232,0.55)"}
-          aria-label="메뉴"
-        >
-          {navOpen ? "Close" : "Menu"}
-          <span style={{
-            display: "inline-block",
-            transform: navOpen ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform 0.3s",
-            fontSize: 14,
-          }}>▸</span>
-        </button>
-      </header>
-
-      {/* 페이지 콘텐츠 */}
-      <Component {...pageProps} />
+        <td style={tdNum}>{String(idx + 1).padStart(3, "0")}</td>
+        <td style={tdTitle}>{book.title}</td>
+        <td style={tdMeta}>{book.creator || "—"}</td>
+        <td style={tdMeta}>{(book.pubDate || "").slice(0, 4) || "—"}</td>
+        <td style={tdMeta}>{book.prisonSize}</td>
+        <td style={{ ...tdMeta, fontFamily: "Courier New, monospace", fontSize: 11 }}>
+          {book.callNo || "—"}
+        </td>
+        <td style={tdMeta}><StatusBadge status={book.status} /></td>
+      </tr>
+      {expanded && (
+        <tr style={{ background: "#FAFAFA" }}>
+          <td colSpan={7} style={{ padding: "16px 16px 20px 52px",
+                                    borderBottom: "1px solid #EBEBEB" }}>
+            <InlineDetail book={book} />
+          </td>
+        </tr>
+      )}
     </>
   );
 }
 ```
 
-> **트레이드오프**:
-> - `_app.js`에 검색 오버레이와 네비게이터를 올리면 각 페이지의 중복 헤더 코드를 제거할 수 있어 유지보수가 편해진다.
-> - 단, `books.js`의 헤더 서브바(뷰 전환, 필터, 정렬)는 해당 페이지 고유 UI이므로 `_app.js`에서 분리하고, books 페이지에 유지한다.
-> - `Head` 컴포넌트를 `_app.js`에서 import 해야 한다(`import Head from "next/head"`).
-
 ---
 
-## 3. ✅ P1 — About 페이지: 전경 사진 + 기획서 본문 (완료)
+## 6. 썸네일뷰 설계 (Shortnotice Studio 패턴)
 
-### 3-1. 전경 사진 추가
+### 6-1. 핵심 결정: CSS "죄수복 카드"
 
-**파일**: `public/nlk-building.jpg`
+NLK API는 표지 이미지를 제공하지 않는다. 두 가지 옵션:
 
-국립중앙도서관 전경 사진(저작권 확인 후 사용, 또는 공식 제공 이미지 사용)을 `public/` 에 저장.
-
-**수정 파일**: `pages/about.js`
-
-히어로 섹션 배경을 CSS 그라디언트 대신 실제 이미지로 교체:
-
-```jsx
-{/* 히어로 배경 — 전경 사진 */}
-<div style={{
-  position: "absolute", inset: 0,
-  backgroundImage: "url('/nlk-building.jpg')",
-  backgroundSize: "cover",
-  backgroundPosition: "center 30%",
-  filter: "brightness(0.35)",
-}}>
-  {/* 하단 그라디언트 오버레이 */}
-  <div style={{
-    position: "absolute", bottom: 0, left: 0, right: 0, height: "60%",
-    background: "linear-gradient(to top, rgba(13,13,13,1) 0%, transparent 100%)",
-  }} />
-</div>
-```
-
-> **트레이드오프**:
-> - `filter: brightness(0.35)` + 하단 그라디언트로 어두운 편집 분위기 유지.
-> - `next/image` 컴포넌트를 사용하면 자동 최적화(WebP 변환, lazy load)가 되나, 배경 이미지로 사용 시 CSS background-image가 더 단순하다. 이 케이스에서는 CSS 방식이 적합.
-> - 이미지 저작권: 국립중앙도서관 공식 홈페이지(nl.go.kr) 보도자료 이미지 또는 Creative Commons 라이선스 이미지 사용 권장.
-
-### 3-2. About 본문 텍스트 교체
-
-**수정 파일**: `pages/about.js` — 2컬럼 텍스트 섹션
-
-```jsx
-{/* 국문 */}
-<p style={{ fontSize: 14, lineHeight: 2.1, fontWeight: 300, color: "rgba(245,240,232,0.5)", marginBottom: 20 }}>
-  'Prison of Literature(책은 죄수다)' 프로젝트는 우연히 책장을 바라보다
-  발견한 책과 죄수 사이의 놀라운 물리적, 체계적 유사성에서 시작되었습니다.
-</p>
-<p style={{ fontSize: 14, lineHeight: 2.1, fontWeight: 300, color: "rgba(245,240,232,0.5)", marginBottom: 20 }}>
-  이 프로젝트에서 책의 모든 정보는 죄수의 인적 사항으로 재정의됩니다.
-  책의 제목은 죄수를 부르는 이름이 되며, 책의 판형과 무게는 죄수의 신장 및 체중과 같은
-  신체 스펙으로 재정의됩니다. 또한 초판 발행일은 죄수의 생년월일이 되고,
-  책을 체계적으로 관리하기 위해 부여된 고유 번호인 ISBN은 이 감옥에서
-  부여하는 죄수 번호의 역할을 수행합니다.
-</p>
-<p style={{ fontSize: 14, lineHeight: 2.1, fontWeight: 300, color: "rgba(245,240,232,0.5)" }}>
-  심지어 책의 청구기호는 죄수의 수인 번호로 재정의됩니다. 모든 책은 기존의 화려한 표지를
-  벗고, 판형에 따라 S, M, L 사이즈로 규격화된 '죄수복(북 커버)'을 입게 되며
-  책등에는 수감 번호가 부착됩니다.
-</p>
-
-{/* 영문 */}
-<p style={{ fontSize: 14, lineHeight: 2.1, fontWeight: 300, color: "rgba(245,240,232,0.5)", marginBottom: 20 }}>
-  The project <em>Prison of Literature</em> originated from the discovery of striking
-  physical and systemic parallels between books and prisoners, observed by chance
-  while gazing at a bookshelf.
-</p>
-<p style={{ fontSize: 14, lineHeight: 2.1, fontWeight: 300, color: "rgba(245,240,232,0.5)", marginBottom: 20 }}>
-  Within this framework, every piece of information regarding a book is reimagined
-  as a prisoner's personal profile. The title of the book functions as the inmate's
-  name, while its trim size and weight are redefined as physical attributes such as
-  height and body mass. The date of first publication serves as the prisoner's date
-  of birth, and the ISBN—the unique identifier used for systematic management—takes
-  on the role of an inmate identification number within this prison.
-</p>
-<p style={{ fontSize: 14, lineHeight: 2.1, fontWeight: 300, color: "rgba(245,240,232,0.5)" }}>
-  Furthermore, even the call number is repurposed as the specific inmate number
-  assigned to the prisoner. Stripped of their vibrant original covers, all books are
-  garbed in standardized 'prison uniforms'—custom book covers categorized into S, M,
-  and L sizes according to their dimensions—with their inmate numbers clearly
-  displayed on the spine.
-</p>
-```
-
----
-
-## 4. ✅ P2 — 상세 페이지 메타데이터 은유 완성 (완료)
-
-### 4-1. helpers.js 업데이트
-
-**수정 파일**: `lib/helpers.js`
-
-`BIBFRAME_extent` 필드를 판형/무게 정보로 파싱하여 신장/체중으로 표시. NLK API의 `extent` 필드는 "26 cm" 또는 "198 p.; 22 cm" 형태.
-
-```javascript
-// helpers.js에 추가
-export function parsePhysical(extent) {
-  // "198 p.; 22 cm" → { height: "22 cm", pages: "198 p." }
-  const cmMatch = (extent || "").match(/(\d+)\s*cm/);
-  const pMatch = (extent || "").match(/(\d+)\s*p/i);
-  return {
-    height: cmMatch ? `${cmMatch[1]} cm` : "—",
-    pages: pMatch ? `${pMatch[1]} p.` : "—",
-  };
-}
-
-export function prisonSize(extent) {
-  const cmMatch = (extent || "").match(/(\d+)\s*cm/);
-  if (!cmMatch) return "M";
-  const cm = parseInt(cmMatch[1]);
-  return cm <= 18 ? "S" : cm <= 24 ? "M" : "L";
-}
-```
-
-`parse()` 함수에 필드 추가:
-
-```javascript
-export function parse(item) {
-  const id = item.BIBLIO_ID || "";
-  const st = simStatus(id);
-  const cl = simClass(id);
-  const extentRaw = Array.isArray(item.BIBFRAME_extent)
-    ? item.BIBFRAME_extent.join(", ")
-    : item.BIBFRAME_extent || "";
-  const physical = parsePhysical(extentRaw);
-
-  return {
-    // ... 기존 필드들 ...
-    extent: extentRaw,
-    height: physical.height,       // 신장 (= 판형 높이)
-    pages: physical.pages,         // 신체 스펙 보조 (= 페이지수)
-    prisonSize: prisonSize(extentRaw), // 죄수복 사이즈
-    pubDate: item.DCTERMS_date || item.DCTERMS_created || "", // 생년월일 (= 발행일)
-    // ...
-  };
-}
-```
-
-### 4-2. 상세 페이지 메타데이터 그리드 업데이트
-
-**수정 파일**: `pages/books.js` — 뷰 B (detail) 메타데이터 그리드
-
-현재 레이블을 기획서 은유로 교체:
-
-```jsx
-{[
-  ["죄수 번호 (ISBN)",    sel.isbn || "—"],
-  ["서지 ID",            sel.id],
-  ["이름 (저자)",        sel.creator || "—"],        // 저자 → 이름 (창작자)
-  ["생년월일 (발행일)",  sel.pubDate || sel.year || "—"],  // 신규
-  ["신장 (판형)",        sel.height || "—"],          // 신규
-  ["죄수복 사이즈",      sel.prisonSize || "—"],       // 신규
-  ["수인 번호 (청구기호)", sel.callNo || "—"],
-  ["수감 시설",          sel.holding || "—"],
-].map(([label, val], i) => (
-  <div key={i} className="meta-cell">
-    <div style={{ fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase",
-                  color: "rgba(245,240,232,0.25)", marginBottom: 3 }}>{label}</div>
-    <div style={{ fontSize: 12, color: "rgba(245,240,232,0.65)",
-                  fontFamily: (i <= 1 || i === 6) ? "'Courier New', monospace" : "inherit" }}>
-      {val}
-    </div>
-  </div>
-))}
-```
-
-> **트레이드오프**:
-> - NLK API의 `DCTERMS_date` 필드 제공 여부가 불확실. 없을 경우 `BIBLIO_ID`에서 추출한 `year`로 폴백.
-> - `BIBFRAME_extent` 파싱은 정규식 기반이라 형식이 다를 경우 "—"로 폴백. 실 데이터 확인 후 조정 필요.
-
----
-
-## 5. ✅ P2 — 갤러리 뷰 실제 표지 이미지 (완료)
-
-### 5-1. 방안 분석
-
-NLK Open API(`getbookList`)는 **표지 이미지 URL을 직접 제공하지 않는다**.
-
-대안:
-
-| 방안 | 방법 | 장점 | 단점 |
+| 옵션 | 방법 | 장점 | 단점 |
 |---|---|---|---|
-| A. NLK 표지 이미지 API | `nl.go.kr`의 별도 표지 서비스 URL 추정 (`http://cover.nl.go.kr/...`) | 동일 기관 | 비공식, 불안정 |
-| B. ISBN 기반 외부 API | Open Library API (`covers.openlibrary.org/b/isbn/{isbn}-L.jpg`) | 무료, 안정적 | 한국 도서 커버 없을 수 있음 |
-| C. Naver 책 API | ISBN으로 표지 이미지 URL 제공 | 한국 도서 강점 | API 키 필요 |
-| D. 컬러 플레이스홀더 유지 | 현재 방식 (분류별 색상) | 구현 불필요 | 이미지 없음 |
+| A. CSS 죄수복 카드 | CSS만으로 카드 생성 | 개념 일관성 완벽, 외부 의존 없음, 로딩 즉시 | 시각적 다양성 낮음 |
+| B. Open Library 표지 | `covers.openlibrary.org/b/isbn/{isbn}-M.jpg` | 실제 이미지 | ISBN 없는 책 많음, 404 처리 필요, 외부 의존 |
 
-**권장**: 방안 B (Open Library) 우선 시도. ISBN이 있는 책은 실제 이미지 표시, 없으면 현재 컬러 플레이스홀더로 폴백.
+→ **결정: A + B 혼합** — ISBN이 있으면 Open Library 이미지 시도, 실패(404)하거나 ISBN 없으면 CSS 죄수복 카드로 fallback. 개념적으로 "모든 책은 죄수복을 입는다"는 메시지를 유지하면서 이미지가 있을 때는 표지를 보여주는 현실적 절충.
 
-### 5-2. 구현
+### 6-2. CSS 죄수복 카드 디자인
 
-**수정 파일**: `pages/books.js` — 갤러리 카드
+판형 S/M/L에 따라 카드 배경 패턴과 높이가 달라진다. 죄수복의 줄무늬(`repeating-linear-gradient`)를 CSS로 표현.
+
+```
+┌─────────────┐
+│░░░░░░░░░░░░│  ← 상태 색상 바 (4px)
+│             │
+│    #0342    │  ← 수인번호 (Courier New, 대형)
+│             │
+│  ████████  │  ← 줄무늬 패턴 영역
+│  ████████  │    (repeating-linear-gradient)
+│  ████████  │
+│             │
+│  [접견가능] │  ← StatusBadge
+│             │
+│  S          │  ← 판형 라벨
+└─────────────┘
+  책 제목 (2줄)
+  저자명
+```
 
 ```jsx
-// 갤러리 카드 수정
-const imgSrc = b.isbn
-  ? `https://covers.openlibrary.org/b/isbn/${b.isbn.replace(/-/g, "")}-M.jpg`
-  : null;
+function UniformCard({ book }) {
+  const stripeColor = {
+    AVAILABLE:   ["#E8F5E9", "#C8E6C9"],
+    CHECKED_OUT: ["#FFF3EE", "#FFE0CC"],
+    RESTRICTED:  ["#FFF0F0", "#FFCDD2"],
+  }[book.status] ?? ["#F5F5F5", "#E0E0E0"];
 
-<div className="card-cover" style={{ background: imgSrc ? "transparent" : coverColor }}>
-  {imgSrc ? (
-    <img
-      src={imgSrc}
-      alt={b.title}
-      style={{
-        width: "100%", height: "100%", objectFit: "cover",
-        filter: "grayscale(100%)",  // .gallery-card:hover에서 grayscale(0%)
-        transition: "filter 0.4s ease",
-      }}
-      onError={(e) => {
-        // 이미지 로드 실패 시 컬러 배경 폴백
-        e.currentTarget.style.display = "none";
-        e.currentTarget.parentElement.style.background = coverColor;
-      }}
-    />
-  ) : (
-    /* 기존 컬러 플레이스홀더 */
-    <div style={{ position: "absolute", inset: 0, background: ... }} />
-  )}
+  const statusBarColor = {
+    AVAILABLE:   "#1B5E20",
+    CHECKED_OUT: "#BF360C",
+    RESTRICTED:  "#B71C1C",
+  }[book.status] ?? "#999";
+
+  return (
+    <div className="uniform-card" style={{ cursor: "pointer" }}>
+      {/* 상태 색상 바 */}
+      <div style={{ height: 4, background: statusBarColor }} />
+
+      {/* 카드 본체 */}
+      <div style={{
+        aspectRatio: "2/3",
+        background: `repeating-linear-gradient(
+          0deg,
+          ${stripeColor[0]} 0px,
+          ${stripeColor[0]} 12px,
+          ${stripeColor[1]} 12px,
+          ${stripeColor[1]} 14px
+        )`,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "16px 12px",
+        gap: 12,
+        position: "relative",
+        overflow: "hidden",
+      }}>
+        {/* 수인번호 */}
+        <div style={{
+          fontFamily: "Courier New, monospace",
+          fontSize: "clamp(18px, 3vw, 28px)",
+          fontWeight: 700,
+          letterSpacing: "0.1em",
+          color: "#111",
+          textAlign: "center",
+          lineHeight: 1.2,
+        }}>
+          {book.callNo ? book.callNo.slice(0, 8) : book.id.slice(0, 8)}
+        </div>
+
+        {/* StatusBadge */}
+        <StatusBadge status={book.status} />
+
+        {/* 판형 */}
+        <div style={{
+          position: "absolute", bottom: 10, right: 12,
+          fontSize: 11, fontWeight: 700,
+          color: "rgba(0,0,0,0.3)", letterSpacing: "0.1em",
+        }}>
+          {book.prisonSize}
+        </div>
+      </div>
+
+      {/* 카드 하단 텍스트 */}
+      <div style={{ padding: "8px 2px" }}>
+        <div style={{
+          fontSize: 12, fontWeight: 600, lineHeight: 1.4,
+          overflow: "hidden",
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          marginBottom: 4,
+        }}>
+          {book.title}
+        </div>
+        <div style={{ fontSize: 11, color: "#767676" }}>
+          {book.creator || "—"}
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+### 6-3. Open Library 이미지 fallback 처리
+
+```jsx
+function BookCover({ book }) {
+  const [imgError, setImgError] = useState(false);
+  const coverUrl = book.isbn && !imgError
+    ? `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`
+    : null;
+
+  if (!coverUrl) return <UniformCard book={book} />;
+
+  return (
+    <div className="uniform-card" style={{ cursor: "pointer" }}>
+      <div style={{ height: 4, background: statusBarColor[book.status] }} />
+      <div style={{ aspectRatio: "2/3", position: "relative", overflow: "hidden" }}>
+        <img
+          src={coverUrl}
+          alt={book.title}
+          onError={() => setImgError(true)}
+          style={{
+            width: "100%", height: "100%",
+            objectFit: "cover",
+            opacity: 0,
+            transition: "opacity 400ms ease-out",
+          }}
+          onLoad={e => { e.target.style.opacity = 1; }}
+        />
+      </div>
+      {/* 하단 텍스트 동일 */}
+    </div>
+  );
+}
+```
+
+### 6-4. 그리드 레이아웃
+
+```jsx
+<div style={{
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+  gap: 24,
+}}>
+  {sorted.map((book, i) => (
+    <BookCover key={book.id} book={book} />
+  ))}
 </div>
 ```
 
-> **트레이드오프**:
-> - `<img>` 태그 사용 시 외부 도메인 이미지 로드. `next.config.js`에 `images.domains` 설정 불필요 (next/image 미사용).
-> - 한국 도서의 경우 Open Library 커버 없을 가능성 높음 → `onError` 폴백이 중요.
-> - `grayscale` 필터를 img에 직접 적용하면 `.gallery-card:hover .card-cover` CSS 선택자가 동작하지 않을 수 있음. img에 직접 CSS 클래스 부여하거나 `card-cover` 내 img를 별도로 선택하도록 CSS 수정 필요.
+**반응형 컬럼 수:**
+- 1200px+: 약 6열
+- 900px: 약 4열
+- 600px: 약 3열
+- 400px 이하: 2열
+
+`auto-fill` + `minmax(160px, 1fr)` 조합으로 별도 미디어쿼리 없이 자동 처리.
+
+### 6-5. 썸네일뷰에서의 패싯 필터 — pill 태그 버블
+
+리스트뷰: 좌측 사이드바 체크박스 형태  
+썸네일뷰: 검색바 아래 가로 스크롤 pill 태그 버블 (Shortnotice Studio 패턴)
+
+```jsx
+function FilterPills({ filters, onChange }) {
+  const pills = [
+    { group: "status", key: "AVAILABLE",          label: "접견가능" },
+    { group: "status", key: "CHECKED_OUT",        label: "접견중" },
+    { group: "status", key: "RESTRICTED",         label: "접견불가" },
+    { group: "classification", key: "GENERAL",           label: "일반" },
+    { group: "classification", key: "SPECIAL COLLECTION", label: "특별소장" },
+    { group: "classification", key: "RESTRICTED",         label: "접근제한" },
+  ];
+
+  return (
+    <div style={{
+      display: "flex", gap: 8, flexWrap: "wrap",
+      padding: "8px 0",
+    }}>
+      {pills.map(({ group, key, label }) => {
+        const active = filters[group].includes(key);
+        return (
+          <button
+            key={`${group}-${key}`}
+            onClick={() => onChange(group, key)}
+            style={{
+              padding: "4px 14px",
+              borderRadius: 100,                          // pill 형태
+              border: "1px solid",
+              borderColor: active ? "#111" : "#DDD",
+              background: active ? "#111" : "#FFF",
+              color: active ? "#FFF" : "#555",
+              fontSize: 11,
+              letterSpacing: "0.05em",
+              cursor: "pointer",
+              transition: "all 0.15s",
+            }}
+          >
+            {label}
+          </button>
+        );
+      })}
+      {hasActiveFilters(filters) && (
+        <button
+          onClick={() => onChange("reset")}
+          style={{
+            padding: "4px 14px", borderRadius: 100,
+            border: "1px solid #C62828",
+            background: "transparent", color: "#C62828",
+            fontSize: 11, cursor: "pointer",
+          }}
+        >
+          초기화 ×
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+**뷰별 필터 UI 분기:**
+```jsx
+{view === "list"
+  ? <FilterSidebar filters={filters} onChange={handleFilterChange} books={books} />
+  : <FilterPills   filters={filters} onChange={handleFilterChange} />
+}
+```
 
 ---
 
-## 6. 전체 파일 수정 목록
+## 7. 패싯 필터 공통 로직
 
-| 파일 | 작업 | 우선순위 |
-|---|---|---|
-| (구조 전체) | 서브디렉토리 → Git 루트로 이동 | P0 |
-| `pages/api/books.js` | API 키 `process.env.NLK_API_KEY`로 변경 | P0 |
-| `.env.local` | `NLK_API_KEY=...` 추가 | P0 |
-| `.gitignore` | `.env*.local` 포함 확인 | P0 |
-| `pages/_app.js` | 신규 생성 — 전역 레이아웃, 확장 네비게이터 | P1 |
-| `pages/index.js` | 헤더 코드 제거 (중복) | P1 |
-| `pages/about.js` | 헤더 제거, 전경 사진, 기획서 본문 반영 | P1 |
-| `pages/books.js` | 헤더 제거, 메타데이터 은유 업데이트, 갤러리 이미지 | P1–P2 |
-| `lib/helpers.js` | `parsePhysical()`, `prisonSize()`, `pubDate` 추가 | P2 |
-| `public/nlk-building.jpg` | 국립중앙도서관 전경 사진 추가 | P1 |
-| `next.config.js` | 변경 없음 (현재 설정으로 충분) | — |
+두 뷰가 동일한 `filters` 상태와 `filtered` 결과를 공유한다. 뷰 전환 시 필터가 유지된다.
+
+```javascript
+const [filters, setFilters] = useState({
+  status: [],
+  yearFrom: "",
+  yearTo: "",
+  classification: [],
+});
+
+function handleFilterChange(group, key) {
+  if (group === "reset") {
+    setFilters({ status: [], yearFrom: "", yearTo: "", classification: [] });
+    return;
+  }
+  if (group === "yearFrom" || group === "yearTo") {
+    setFilters(prev => ({ ...prev, [group]: key }));
+    return;
+  }
+  setFilters(prev => {
+    const arr = prev[group];
+    return {
+      ...prev,
+      [group]: arr.includes(key) ? arr.filter(v => v !== key) : [...arr, key],
+    };
+  });
+}
+
+const filtered = books.filter(book => {
+  if (filters.status.length && !filters.status.includes(book.status)) return false;
+  if (filters.yearFrom && parseInt(book.pubDate) < parseInt(filters.yearFrom)) return false;
+  if (filters.yearTo   && parseInt(book.pubDate) > parseInt(filters.yearTo))   return false;
+  if (filters.classification.length && !filters.classification.includes(book.classification)) return false;
+  if (q) {
+    const lq = q.toLowerCase();
+    return book.title.toLowerCase().includes(lq)
+        || (book.creator || "").toLowerCase().includes(lq)
+        || (book.isbn   || "").includes(lq);
+  }
+  return true;
+});
+
+function hasActiveFilters(f) {
+  return f.status.length || f.yearFrom || f.yearTo || f.classification.length;
+}
+```
+
+**필터+정렬 적용 순서:** `books → filtered (패싯) → sorted (컬럼 정렬) → 렌더링`
 
 ---
 
-## 7. 배포 체크리스트
+## 8. 글로벌 스타일 (`_app.js`)
 
+### 8-1. 색상 시스템
+
+```javascript
+const BG     = "#FFFFFF";
+const TEXT   = "#111111";
+const ACCENT = "#C62828";   // 강조/링크/초기화 버튼
+const BORDER = "#E0E0E0";   // 구분선
+const MUTED  = "#767676";   // 보조 텍스트
 ```
-[x] 1. 서브디렉토리 파일 Git 루트로 이동
-[x] 2. npm install & npm run build 로컬 빌드 성공 확인
-[x] 3. .env.local에 NLK_API_KEY 설정
-[x] 4. .gitignore에 .env*.local 포함 확인
-[ ] 5. GitHub 신규 저장소 생성 (prison-of-literature) — GitHub Desktop에서 push
-[ ] 6. git push to main — GitHub Desktop에서 실행
-[ ] 7. Vercel New Project → GitHub 저장소 연결
-[ ] 8. Framework: Next.js 자동 감지 확인
-[ ] 9. Root Directory: "." (변경하지 않음) — vercel.json 불필요, 기본값 사용
-[ ] 10. Environment Variables: NLK_API_KEY 입력
-[ ] 11. Deploy → 빌드 로그 확인
-[ ] 12. 배포 URL에서 /api/books 동작 확인
-[ ] 13. 홈, About, Index 각 페이지 동작 확인
+
+### 8-2. 상태 뱃지 색상 (흰 배경용)
+
+```javascript
+// lib/helpers.js 업데이트
+export const ST = {
+  AVAILABLE:   { ko: "접견가능", en: "AVAILABLE",   c: "#1B5E20", bg: "#F1F8F1" },
+  CHECKED_OUT: { ko: "접견중",   en: "CHECKED OUT", c: "#BF360C", bg: "#FFF3EE" },
+  RESTRICTED:  { ko: "접견불가", en: "RESTRICTED",  c: "#B71C1C", bg: "#FFF0F0" },
+};
+```
+
+### 8-3. 헤더 (단순화)
+
+풀스크린 오버레이 네비 삭제. 단순한 2-item 헤더.
+
+```jsx
+<header style={{
+  position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+  height: 52,
+  borderBottom: "1px solid #E0E0E0",
+  background: "rgba(255,255,255,0.97)",
+  backdropFilter: "blur(8px)",
+  display: "flex", alignItems: "center", justifyContent: "space-between",
+  padding: "0 24px",
+}}>
+  <Link href="/" style={{ fontSize: 13, fontWeight: 700,
+                           letterSpacing: "0.15em", textTransform: "uppercase" }}>
+    Prison of Literature
+  </Link>
+  <Link href="/about" style={{ fontSize: 11, letterSpacing: "0.1em",
+                                color: "#767676", textTransform: "uppercase" }}>
+    About
+  </Link>
+</header>
+```
+
+### 8-4. CSS 클래스 정의
+
+```css
+/* 리스트뷰 행 hover */
+.book-row:hover { background: #FAFAFA !important; }
+.book-row:hover .row-num { color: #C62828 !important; }
+
+/* 썸네일 카드 hover */
+.uniform-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.uniform-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.1); }
+
+/* fade-in (lazy load 애니메이션) */
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+.fade-in { animation: fadeIn 400ms ease-out forwards; }
+
+/* pill 필터 hover */
+.filter-pill:hover { border-color: #999 !important; }
 ```
 
 ---
 
-## 8. 트레이드오프 종합
+## 9. `pages/api/books.js` — 검색 파라미터 확장
 
-### 8-1. `_app.js` 공통 레이아웃 vs. 페이지별 헤더
+```javascript
+export default async function handler(req, res) {
+  const {
+    pageNo    = "1",
+    numOfRows = "30",   // 20 → 30 (더 많은 데이터)
+    q         = "",     // 텍스트 검색 추가
+    koreanOnly = "true",
+  } = req.query;
 
-| | 공통 `_app.js` | 페이지별 인라인 |
-|---|---|---|
-| 유지보수 | 헤더 1곳만 수정 | 각 페이지 수정 필요 |
-| 유연성 | 페이지별 헤더 커스터마이징 어려움 | 각 페이지 자유도 높음 |
-| 현재 상황 | `books.js`에 페이지별 서브바 있음 | — |
+  const fetchRows = koreanOnly === "true"
+    ? String(Math.min(parseInt(numOfRows) * 5, 100))
+    : numOfRows;
 
-**결론**: `_app.js`에서 글로벌 헤더(로고 + 메뉴 토글)만 담당하고, `books.js`의 필터/뷰 전환 서브바는 해당 페이지에 유지.
-
-### 8-2. 확장 네비게이터 애니메이션 방식
-
-| 방식 | 구현 | 성능 |
-|---|---|---|
-| `transform: translateY(-100% → 0)` | CSS transition | GPU 가속, 부드러움 |
-| `height: 0 → 100vh` | CSS transition | 레이아웃 리플로우 유발 |
-| `opacity + pointer-events` | 검색 오버레이와 동일 | 위치 변경 없이 페이드만 |
-
-**결론**: `transform: translateY` 방식 채택. GPU 합성 레이어에서 처리되어 60fps 유지.
-
-### 8-3. 갤러리 이미지 전략
-
-| 전략 | 미구현 영향 | 구현 난이도 |
-|---|---|---|
-| Open Library ISBN 이미지 | 한국 도서 커버 부재 시 폴백 작동 | 낮음 |
-| 컬러 플레이스홀더 유지 | 기획서 "이미지 인덱스" 미충족 | 없음 |
-
-**결론**: Open Library 시도 + `onError` 폴백으로 현재 플레이스홀더 유지. 실제 전시 환경에서는 Naver 책 API 또는 표지 이미지 별도 수집 검토.
-
-### 8-4. NLK API 검색 범위
-
-현재 검색은 로드된 20건 내 클라이언트 필터링만 동작. 전체 1,200만건 검색 아님. 전체 검색을 구현하려면:
-- API 파라미터에 `kwd` (제목 검색) 추가 필요
-- NLK API 스펙 확인 후 `/api/books` 서버사이드 검색 파라미터 지원 추가
+  const params = new URLSearchParams({
+    serviceKey: process.env.NLK_API_KEY,
+    pageNo,
+    numOfRows: fetchRows,
+    type: "JSON",
+    ...(q ? { title: q } : {}),
+  });
+  // 기존 fetch/parse 로직 유지
+}
+```
 
 ---
 
-## 9. 구현 순서 요약
+## 10. `next.config.js` 수정
 
-```
-1. [P0] 구조 재편 + API 키 환경변수화 → 로컬 빌드 확인
-2. [P0] GitHub 신규 저장소 생성 + 첫 커밋 + push
-3. [P0] Vercel 재연결 + 환경변수 설정 + 첫 배포 성공 확인
-       ↓ 배포 안정화 후
-4. [P1] pages/_app.js 생성 (확장 네비게이터)
-5. [P1] About 전경 사진 + 기획서 본문 텍스트
-6. [P1] 각 페이지 헤더 코드 제거 (중복 제거)
-7. [P2] helpers.js 메타데이터 확장 (판형→신장, 발행일)
-8. [P2] books.js 상세 페이지 메타데이터 레이블 업데이트
-9. [P2] 갤러리 뷰 Open Library 이미지 시도
+```javascript
+const nextConfig = {
+  reactStrictMode: true,
+  async redirects() {
+    return [{ source: "/books", destination: "/", permanent: true }];
+  },
+};
+module.exports = nextConfig;
 ```
 
+---
 
-### 10. 피드백 메모
+## 11. 구현 우선순위
 
-현재 폴더는 download에 있는데, 내가 추천받은 방식은 github에 로컬로 연결한 후, Vercel에 연결해서 로컬 파일을 수정했을 때, github desktop에서 push만 누르면 자동으로 업데이트되는 방식이야.
-다만 이 방식에서 Error가 발생했었기 때문에 기존에 존재했던 레포지토리를 전부 지웠던거야. 참고해.
+### Phase 1 — 핵심 기반 (즉시)
+| 작업 | 파일 | 난이도 |
+|---|---|---|
+| ~~흰 테마 전환, 헤더 단순화~~ | ~~`_app.js`~~ | ~~낮음~~ |
+| ~~히어로 제거 → 즉시 인덱스 레이아웃~~ | ~~`index.js` 전면 재작성~~ | ~~중간~~ |
+| ~~리스트뷰 테이블 (Roma Publications 패턴)~~ | ~~`index.js`~~ | ~~중간~~ |
+| ~~"Search Inmate" 검색바~~ | ~~`index.js`~~ | ~~낮음~~ |
+| ~~정렬 가능 컬럼 헤더~~ | ~~`index.js`~~ | ~~중간~~ |
+| ~~뷰 토글 버튼 (List / Grid)~~ | ~~`index.js`~~ | ~~낮음~~ |
+| ~~CSS 죄수복 카드 그리드뷰~~ | ~~`index.js`~~ | ~~중간~~ |
+| ~~`books.js` 삭제 + 리다이렉트~~ | ~~`next.config.js`~~ | ~~낮음~~ |
+
+### Phase 2 — 필터 고도화
+| 작업 | 파일 | 난이도 |
+|---|---|---|
+| ~~리스트뷰 패싯 사이드바~~ | ~~`index.js`~~ | ~~중간~~ |
+| ~~썸네일뷰 pill 태그 필터~~ | ~~`index.js`~~ | ~~중간~~ |
+| ~~연도 범위 필터~~ | ~~`index.js`~~ | ~~중간~~ |
+| ~~URL 쿼리 파라미터 동기화~~ | ~~`index.js`~~ | ~~중간~~ |
+| ~~Open Library 표지 이미지 + fallback~~ | ~~`index.js`~~ | ~~중간~~ |
+
+### Phase 3 — 디테일
+| 작업 | 파일 | 난이도 |
+|---|---|---|
+| 모바일 반응형 (필터 토글, 그리드 축소) | `index.js` | 중간 |
+| ~~인라인 행 확장 상세 메타~~ | ~~`index.js`~~ | ~~높음~~ |
+| ~~About 흰 배경 교체~~ | ~~`about.js`~~ | ~~낮음~~ |
+| 키보드 접근성 (aria) | 전체 | 중간 |
+
+---
+
+## 12. 트레이드오프 종합
+
+### 12-1. 히어로 페이지 제거
+- **잃는 것**: "책은 죄수다" 개념적 임팩트 전달 장치
+- **얻는 것**: 즉각 기능 접근, 레퍼런스 일관성
+- **완화책**: 헤더 아래 한 줄 개념 설명 + 수감자 카운터 유지
+
+### 12-2. 다크 → 화이트 테마
+- **잃는 것**: 교도소 감시 시스템 분위기
+- **얻는 것**: 레퍼런스 도서관/아카이브 미학, 가독성
+- **완화책**: 빨간 accent(`#C62828`), 헤더/테이블 보더로 긴장감 유지
+
+### 12-3. 기존 갤러리뷰 삭제 → CSS 죄수복 카드로 대체
+- **잃는 것**: 실제 표지 이미지 기반 갤러리
+- **얻는 것**: 프로젝트 개념과 완벽히 일치하는 시각 언어, 외부 의존 없음, 로딩 즉각
+- **추가 옵션**: Open Library fallback으로 ISBN 있는 책은 실제 표지 표시 가능
+
+### 12-4. 풀스크린 오버레이 네비 제거
+- **잃는 것**: 인상적인 풀스크린 메뉴 애니메이션
+- **얻는 것**: 단순하고 빠른 네비게이션
+- **근거**: 페이지가 2개(Index + About)에 불과
+
+### 12-5. 뷰 전환 시 필터 상태 유지
+- **결정**: `view` 토글이 `filters`와 `q`를 초기화하지 않는다. 리스트뷰에서 검색하다가 썸네일뷰로 전환해도 같은 결과를 다른 레이아웃으로 보는 것.
+- **이유**: 뷰는 표현 방식의 차이이지 데이터의 차이가 아니다.
+
+### 12-6. 클라이언트 사이드 패싯 필터
+- **잃는 것**: 전체 데이터셋에 대한 정확한 결과 (현재 페이지 내에만 적용)
+- **얻는 것**: API 확장 없이 즉각 구현 가능
+- **완화책**: `numOfRows` 확대(30→50 이상), 텍스트 검색은 API 레벨 처리
+
+---
+
+## 13. 수정 파일 목록 요약
+
+| 파일 | 변경 유형 | 내용 |
+|---|---|---|
+| ~~`pages/_app.js`~~ | ~~대폭 수정~~ | ~~흰 테마, 단순 헤더, 오버레이 삭제~~ |
+| ~~`pages/index.js`~~ | ~~**전면 재작성**~~ | ~~히어로 제거 → 검색+패싯+뷰토글+리스트/썸네일~~ |
+| ~~`pages/books.js`~~ | ~~삭제~~ | ~~index.js로 통합~~ |
+| ~~`pages/about.js`~~ | ~~경량 수정~~ | ~~색상 값만 흰 테마로 교체~~ |
+| ~~`pages/api/books.js`~~ | ~~소폭 수정~~ | ~~`q` 파라미터 추가~~ |
+| ~~`lib/helpers.js`~~ | ~~소폭 수정~~ | ~~상태 색상 흰 배경용으로 업데이트 + DC_creator 버그 수정~~ |
+| ~~`next.config.js`~~ | ~~소폭 수정~~ | ~~`/books` → `/` 리다이렉트~~ |
+
+---
+
+## 14. 구현 시작 전 체크리스트
+
+- [x] `Documents/GitHub/Prison-of-Literature`에서 작업 확인 (`pwd`)
+- [x] `git pull origin main` 최신 동기화
+- [x] Downloads 폴더 혼동 주의
+- [x] Vercel 환경변수 `NLK_API_KEY` 설정 확인
+- [x] `npm run dev`로 로컬 테스트 후 push
+
+---
+
+*plan.md v3 — Claude Sonnet 4.6 / 2026-04-14*
