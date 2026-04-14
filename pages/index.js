@@ -57,6 +57,10 @@ function StatusBadge({ status }) {
 
 /* ── 인라인 상세 패널 ── */
 function InlineDetail({ book }) {
+  const [imgError, setImgError] = useState(false);
+  const coverSrc = book.coverUrl || (book.isbn ? `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg` : null);
+  const showCover = Boolean(coverSrc) && !imgError;
+
   const rows = [
     ["수인번호 / Call No.", book.callNo  || "—"],
     ["ISBN",               book.isbn    || "—"],
@@ -69,33 +73,62 @@ function InlineDetail({ book }) {
     ["키워드",             book.keyword  || "—"],
   ];
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-      gap: "1px 24px",
-      fontFamily: FONT,
-      fontSize: 12,
-    }}>
-      {rows.map(([k, v]) => (
-        <div key={k} style={{
-          display: "flex", gap: 8,
-          padding: "2px 0",
-          borderBottom: `1px solid ${ROW_BORDER}`,
-        }}>
-          <span style={{ color: MUTED, minWidth: 110, flexShrink: 0 }}>{k}</span>
-          <span style={{ color: "#111", wordBreak: "break-word" }}>{v}</span>
-        </div>
-      ))}
-      {book.abstract && (
-        <div style={{
-          gridColumn: "1/-1",
-          marginTop: 6, fontSize: 12,
-          color: "#444", lineHeight: 1.6,
-          borderTop: `1px solid ${ROW_BORDER}`, paddingTop: 6,
-        }}>
-          {book.abstract}
-        </div>
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+      {showCover && (
+        <img
+          src={coverSrc}
+          alt={book.title}
+          onError={() => setImgError(true)}
+          style={{
+            flexShrink: 0, width: 80,
+            display: "block",
+            border: `1px solid ${ROW_BORDER}`,
+          }}
+        />
       )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "2px 0 5px",
+          borderBottom: `1px solid ${ROW_BORDER}`,
+          marginBottom: 2,
+        }}>
+          <span style={{ color: MUTED, fontSize: 12, fontFamily: FONT, minWidth: 110, flexShrink: 0 }}>접견상태</span>
+          <StatusBadge status={book.status} />
+          {book.returnDate && (
+            <span style={{ color: MUTED, fontSize: 11, fontFamily: FONT }}>
+              반납예정 {book.returnDate} · 방문자 {book.visitor}
+            </span>
+          )}
+        </div>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+          gap: "1px 24px",
+          fontFamily: FONT,
+          fontSize: 12,
+        }}>
+          {rows.map(([k, v]) => (
+            <div key={k} style={{
+              display: "flex", gap: 8,
+              padding: "2px 0",
+              borderBottom: `1px solid ${ROW_BORDER}`,
+            }}>
+              <span style={{ color: MUTED, minWidth: 110, flexShrink: 0 }}>{k}</span>
+              <span style={{ color: "#111", wordBreak: "break-word" }}>{v}</span>
+            </div>
+          ))}
+        </div>
+        {book.abstract && (
+          <div style={{
+            marginTop: 6, fontSize: 12,
+            color: "#444", lineHeight: 1.6,
+            borderTop: `1px solid ${ROW_BORDER}`, paddingTop: 6,
+          }}>
+            {book.abstract}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -190,7 +223,7 @@ function BookRow({ book, idx, expanded, onToggle }) {
         </td>
 
         {/* 청구기호 (monospace — Roma SIZE 패턴) */}
-        <td style={tdStyle({ width: 160, fontFamily: "Courier New, monospace", fontSize: 11 })}>
+        <td style={tdStyle({ width: 160, fontFamily: '"Courier New", "Apple SD Gothic Neo", "Malgun Gothic", monospace', fontSize: 11 })}>
           <span style={{
             display: "block", overflow: "hidden",
             textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -198,17 +231,12 @@ function BookRow({ book, idx, expanded, onToggle }) {
             {book.callNo || "—"}
           </span>
         </td>
-
-        {/* 접견상태 */}
-        <td style={tdStyle({ width: 84 })}>
-          <StatusBadge status={book.status} />
-        </td>
       </tr>
 
       {/* 인라인 확장 패널 */}
       {expanded && (
         <tr style={{ background: "#FFFAFA" }}>
-          <td colSpan={7} style={{
+          <td colSpan={6} style={{
             fontFamily:   FONT, fontSize: 12,
             padding:      "8px 16px 12px 60px",
             borderTop:    `1px solid ${ROW_BORDER}`,
@@ -250,7 +278,6 @@ function ListView({ books, pageOffset, sortCol, sortDir, onSort, expandedId, onT
             <SortTh col="year"       label="발행 / YEAR"         {...{sortCol, sortDir, onSort}} style={{ width: 52 }} />
             <SortTh col="prisonSize" label="판형 / SIZE"         {...{sortCol, sortDir, onSort}} style={{ width: 56 }} />
             <SortTh col="callNo"     label="청구기호"             {...{sortCol, sortDir, onSort}} style={{ width: 160 }} />
-            <SortTh col="status"     label="접견상태"             {...{sortCol, sortDir, onSort}} style={{ width: 84 }} />
           </tr>
         </thead>
         <tbody>
@@ -274,7 +301,8 @@ function UniformCard({ book, onToggle, expanded }) {
   const barColor = STATUS_BAR[book.status] ?? "#999";
   const [s1, s2] = STRIPE[book.status] ?? ["#F5F5F5", "#E8E8E8"];
   const [imgError, setImgError] = useState(false);
-  const hasCover = book.isbn && !imgError;
+  const coverSrc = book.coverUrl || (book.isbn ? `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg` : null);
+  const hasCover = Boolean(coverSrc) && !imgError;
 
   return (
     <div
@@ -299,7 +327,7 @@ function UniformCard({ book, onToggle, expanded }) {
       }}>
         {hasCover ? (
           <img
-            src={`https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg`}
+            src={coverSrc}
             alt={book.title}
             onError={() => setImgError(true)}
             onLoad={e => { e.currentTarget.style.opacity = "1"; }}
@@ -465,7 +493,7 @@ export default function Index() {
       if (data?.header?.resultCode && data.header.resultCode !== "00")
         throw new Error(data.header.resultMsg || "API 오류");
       const body = data?.body ?? data;
-      setBooks((body?.items ?? []).map(parse));
+      setBooks((body?.items ?? []).map(item => item._parsed ? item : parse(item)));
       setTotal(body?.totalCount ?? 0);
       setPn(page);
       setExpandedId(null);

@@ -1,5 +1,8 @@
+import { simStatus, simClass, simReturn, simVisitor, simCharges } from "../../lib/helpers.js";
+
 const API_KEY  = process.env.NLK_API_KEY;
 const API_BASE = "https://apis.data.go.kr/1371029/BookInformationService/getbookList";
+const GOOGLE_BOOKS_BASE = "https://www.googleapis.com/books/v1/volumes";
 
 /* NLK API 실제 제약
    - 페이지당 최대 20개 반환 (numOfRows 값 무시됨)
@@ -45,6 +48,66 @@ function isBookItem(item) {
   return true;
 }
 
+/* Google Books 단일 권 파싱 → parse() 반환 형식과 동일 */
+function parseGoogleBook(vol) {
+  const id   = vol.id || "";
+  const info = vol.volumeInfo || {};
+  const isbns = info.industryIdentifiers || [];
+  const isbn  = (isbns.find(x => x.type === "ISBN_13") || isbns.find(x => x.type === "ISBN_10") || {}).identifier || "";
+  const year  = (info.publishedDate || "").slice(0, 4);
+  const st    = simStatus(id);
+  const cl    = simClass(id);
+  return {
+    _parsed:        true,
+    id,
+    title:          info.title || "제목 없음",
+    label:          "",
+    creator:        (info.authors || []).join(", "),
+    isbn,
+    pubPlace:       "",
+    pubDate:        year,
+    year,
+    callNo:         "",
+    extent:         "",
+    height:         "—",
+    pages:          info.pageCount ? `${info.pageCount}p.` : "—",
+    prisonSize:     "—",
+    holding:        "",
+    abstract:       info.description || "",
+    genre:          (info.categories || []).join(", "),
+    desc:           "",
+    alt:            "",
+    format:         "",
+    keyword:        "",
+    status:         st,
+    classification: cl,
+    charges:        simCharges(cl),
+    returnDate:     st === "CHECKED_OUT" ? simReturn(id) : "",
+    visitor:        st === "CHECKED_OUT" ? simVisitor(id) : "",
+    coverUrl:       (info.imageLinks?.thumbnail || "").replace("http://", "https://"),
+  };
+}
+
+async function searchGoogleBooks(q, maxResults = 30) {
+  const params = new URLSearchParams({
+    q,
+    langRestrict: "ko",
+    printType:    "books",
+    maxResults:   String(maxResults),
+  });
+  try {
+    const res = await fetch(`${GOOGLE_BOOKS_BASE}?${params}`);
+    if (!res.ok) return { items: [], totalCount: 0 };
+    const data = await res.json();
+    return {
+      items:      (data.items || []).map(parseGoogleBook),
+      totalCount: data.totalItems || 0,
+    };
+  } catch {
+    return { items: [], totalCount: 0 };
+  }
+}
+
 /* NLK API 단일 페이지 fetch 헬퍼 */
 async function fetchNLKPage(apiPage) {
   const params = new URLSearchParams({
@@ -77,12 +140,21 @@ export default async function handler(req, res) {
     pageNo     = "1",
     numOfRows  = "30",
     koreanOnly = "true",
+    q          = "",
   } = req.query;
 
   const requested = parseInt(numOfRows, 10);
   const userPage  = parseInt(pageNo, 10);
 
   try {
+    if (q.trim()) {
+      const result = await searchGoogleBooks(q.trim(), requested);
+      return res.status(200).json({
+        header: { resultCode: "00", resultMsg: "NORMAL_CODE" },
+        body: { totalCount: result.totalCount, pageNo: userPage, numOfRows: requested, items: result.items },
+      });
+    }
+
     if (koreanOnly === "true") {
       /* 한국 오프라인 단행본 모드
          - KOR_MONO_START 오프셋 적용: 사용자 pageNo 1→API 120001
@@ -102,7 +174,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         header: { resultCode: "00", resultMsg: "NORMAL_CODE" },
         body: {
-          totalCount: r1.totalCount || r2.totalCount || r3.totalCount,
+          totalCount: r1.totalCount,
           pageNo:     userPage,
           numOfRows:  requested,
           items:      allItems.slice(0, requested),
