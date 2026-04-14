@@ -16,6 +16,14 @@ function isKoreanItem(item) {
   return creators.some(c => hasKorean(c || ""));
 }
 
+/* 도서 자료 판별 — ISBN이 있는 항목만 도서로 간주
+   논문·신문·기사 등은 ISBN 없이 ISSN만 존재하거나 둘 다 없음 */
+function isBookItem(item) {
+  const isbn = item.BIBO_isbn;
+  if (Array.isArray(isbn)) return isbn.some(v => v && String(v).trim().length > 0);
+  return !!(isbn && String(isbn).trim().length > 0);
+}
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin",  "*");
   res.setHeader("Access-Control-Allow-Methods", "GET");
@@ -66,11 +74,11 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: data.header.resultMsg || "NLK API error" });
     }
 
-    /* 한국어 필터 적용 */
-    if (koreanOnly === "true" && Array.isArray(data?.body?.items)) {
-      data.body.items = data.body.items
-        .filter(isKoreanItem)
-        .slice(0, requested);
+    /* 도서 + 한국어 필터 적용 */
+    if (Array.isArray(data?.body?.items)) {
+      let items = data.body.items.filter(isBookItem);
+      if (koreanOnly === "true") items = items.filter(isKoreanItem);
+      data.body.items = items.slice(0, requested);
     }
 
     return res.status(200).json(data);

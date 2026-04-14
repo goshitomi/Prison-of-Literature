@@ -1,10 +1,23 @@
 import Head from "next/head";
 import Link from "next/link";
+import { useState } from "react";
+
+/* Roma Publications 패턴:
+   - font: 12px/1.4em Arial, Helvetica, sans-serif
+   - header: 미니멀, 40px, 테두리 없음
+   - 한국어 폴백: "Apple SD Gothic Neo", sans-serif
+*/
+const FONT    = "Arial, Helvetica, sans-serif";
+const ACCENT  = "#C62828";
+const ROW_BORDER = "#FFE0E0";
 
 const FONTS =
-  "https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Serif+KR:wght@400;700&display=swap";
+  "https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;700&display=swap";
 
 export default function App({ Component, pageProps }) {
+  const [hoverAbout, setHoverAbout] = useState(false);
+  const [hoverLogo,  setHoverLogo]  = useState(false);
+
   return (
     <>
       <Head>
@@ -18,53 +31,56 @@ export default function App({ Component, pageProps }) {
         /* ── Reset ── */
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
         html { scroll-behavior: smooth; }
+
+        /* ── Body: Roma Publications 기본 ── */
         body {
-          font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 12px;
+          line-height: 1.4em;
           background: #FFFFFF;
-          color: #111111;
+          color: #000000;
           -webkit-font-smoothing: antialiased;
           overflow-x: hidden;
         }
+
         a { color: inherit; text-decoration: none; }
         button { cursor: pointer; font-family: inherit; background: none; border: none; }
         input, select, textarea { font-family: inherit; }
 
-        /* ── 페이지 콘텐츠 상단 여백 (고정 헤더 52px) ── */
-        .page-body { padding-top: 52px; }
+        /* ── 페이지 상단 여백 (고정 헤더 40px) ── */
+        .page-body { padding-top: 40px; }
 
-        /* ── 리스트 행 hover ── */
-        .book-row { transition: background 0.1s; }
-        .book-row:hover { background: #F5F5F5 !important; }
-        .book-row:hover .row-num { color: #C62828 !important; }
-
-        /* ── 썸네일 카드 hover ── */
+        /* ── 리스트 행 hover (book-row 클래스 → BookRow 컴포넌트에서 직접 처리) ── */
         .uniform-card {
           transition: transform 0.2s ease, box-shadow 0.2s ease;
           cursor: pointer;
         }
         .uniform-card:hover {
           transform: translateY(-2px);
-          box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.10);
         }
 
-        /* ── fade-in 애니메이션 ── */
+        /* ── fade-in ── */
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(4px); }
           to   { opacity: 1; transform: translateY(0); }
         }
         .fade-in { animation: fadeIn 400ms ease-out forwards; }
 
-        /* ── pill 필터 hover ── */
-        .filter-pill:hover:not(.active) {
-          border-color: #999 !important;
-          color: #333 !important;
-        }
-
         /* ── 스피너 ── */
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ── 정렬 컬럼 헤더 hover ── */
-        .sort-th:hover { color: #111 !important; }
+        /* ── 검색 인풋 (Roma 스타일) ── */
+        input[type="search"]::-webkit-search-cancel-button {
+          -webkit-appearance: none;
+          width: 0.72em;
+          height: 0.72em;
+          background-image:
+            linear-gradient(45deg,  transparent 44%, #000 44%, #000 56%, transparent 56%),
+            linear-gradient(-45deg, transparent 44%, #000 44%, #000 56%, transparent 56%);
+          background-size: 100% 100%;
+          cursor: pointer;
+        }
 
         /* ── 스크롤바 ── */
         ::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -73,13 +89,13 @@ export default function App({ Component, pageProps }) {
         ::-webkit-scrollbar-thumb:hover { background: #BBB; }
       `}</style>
 
-      {/* ── 고정 헤더 ── */}
+      {/* ── 고정 헤더 (Roma: 타이틀 좌 | About 우, 40px) ── */}
       <header style={{
         position:       "fixed",
         top: 0, left: 0, right: 0,
         zIndex:         100,
-        height:         52,
-        borderBottom:   "1px solid #E8E8E8",
+        height:         40,
+        borderBottom:   `1px solid ${ROW_BORDER}`,
         background:     "rgba(255,255,255,0.97)",
         backdropFilter: "blur(8px)",
         display:        "flex",
@@ -87,27 +103,37 @@ export default function App({ Component, pageProps }) {
         justifyContent: "space-between",
         padding:        "0 24px",
       }}>
-        <Link href="/" style={{
-          fontFamily:    "'Noto Serif KR', Georgia, serif",
-          fontSize:      13,
-          fontWeight:    700,
-          letterSpacing: "0.15em",
-          textTransform: "uppercase",
-          color:         "#111",
-        }}>
+        {/* 로고 */}
+        <Link
+          href="/"
+          style={{
+            fontFamily:    FONT,
+            fontSize:      12,
+            fontWeight:    "bold",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color:         hoverLogo ? ACCENT : "#000",
+            transition:    "color 0.1s",
+          }}
+          onMouseEnter={() => setHoverLogo(true)}
+          onMouseLeave={() => setHoverLogo(false)}
+        >
           Prison of Literature
         </Link>
 
-        <Link href="/about"
+        {/* About 링크 */}
+        <Link
+          href="/about"
           style={{
-            fontSize:      11,
-            letterSpacing: "0.12em",
+            fontFamily:    FONT,
+            fontSize:      12,
+            letterSpacing: "0.08em",
             textTransform: "uppercase",
-            color:         "#767676",
-            transition:    "color 0.15s",
+            color:         hoverAbout ? ACCENT : "#767676",
+            transition:    "color 0.1s",
           }}
-          onMouseOver={e => (e.currentTarget.style.color = "#111")}
-          onMouseOut={e  => (e.currentTarget.style.color = "#767676")}
+          onMouseEnter={() => setHoverAbout(true)}
+          onMouseLeave={() => setHoverAbout(false)}
         >
           About
         </Link>
