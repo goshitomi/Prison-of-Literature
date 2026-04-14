@@ -16,12 +16,30 @@ function isKoreanItem(item) {
   return creators.some(c => hasKorean(c || ""));
 }
 
-/* 도서 자료 판별 — ISBN이 있는 항목만 도서로 간주
-   논문·신문·기사 등은 ISBN 없이 ISSN만 존재하거나 둘 다 없음 */
+/* 도서 자료 판별 — RDF_type / BIBO_degree 기반
+   BIBO_isbn은 구형 레코드에 null인 경우가 많아 신뢰 불가.
+   실제 자료 유형은 RDF_type[] URI와 BIBO_degree 필드로 구분. */
+const NON_BOOK_TYPES = [
+  "bibo/Thesis",
+  "bibo/Article",
+  "bibo/AcademicArticle",
+  "bibo/LegalDocument",
+  "bibo/Periodical",
+  "bibo/Journal",
+  "bibo/Newspaper",
+  "bibo/Issue",
+];
 function isBookItem(item) {
-  const isbn = item.BIBO_isbn;
-  if (Array.isArray(isbn)) return isbn.some(v => v && String(v).trim().length > 0);
-  return !!(isbn && String(isbn).trim().length > 0);
+  // 학위논문: BIBO_degree 필드 존재 시 제외
+  if (item.BIBO_degree) return false;
+
+  // RDF_type 배열에 비도서 타입 URI가 포함되면 제외
+  const types = Array.isArray(item.RDF_type)
+    ? item.RDF_type
+    : item.RDF_type ? [item.RDF_type] : [];
+  if (types.some(t => NON_BOOK_TYPES.some(nb => String(t).includes(nb)))) return false;
+
+  return true;
 }
 
 export default async function handler(req, res) {
@@ -34,7 +52,6 @@ export default async function handler(req, res) {
     numOfRows  = "30",
     q          = "",      /* 제목 텍스트 검색 */
     koreanOnly = "true",
-    _raw       = "",      /* 개발 전용: 원본 항목 1개 덤프 */
   } = req.query;
 
   const requested = parseInt(numOfRows, 10);
@@ -73,11 +90,6 @@ export default async function handler(req, res) {
     /* 오류 코드 체크 */
     if (data?.header?.resultCode && data.header.resultCode !== "00") {
       return res.status(502).json({ error: data.header.resultMsg || "NLK API error" });
-    }
-
-    /* 개발 전용: 원본 항목 구조 덤프 */
-    if (_raw === "1" && Array.isArray(data?.body?.items)) {
-      return res.status(200).json({ _debug: data.body.items.slice(0, 2) });
     }
 
     /* 도서 + 한국어 필터 적용 */
