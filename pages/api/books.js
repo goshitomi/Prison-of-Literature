@@ -34,6 +34,7 @@ export default async function handler(req, res) {
     numOfRows  = "30",
     q          = "",      /* 제목 텍스트 검색 */
     koreanOnly = "true",
+    _raw       = "",      /* 개발 전용: 원본 항목 1개 덤프 */
   } = req.query;
 
   const requested = parseInt(numOfRows, 10);
@@ -72,6 +73,11 @@ export default async function handler(req, res) {
     /* 오류 코드 체크 */
     if (data?.header?.resultCode && data.header.resultCode !== "00") {
       return res.status(502).json({ error: data.header.resultMsg || "NLK API error" });
+    }
+
+    /* 개발 전용: 원본 항목 구조 덤프 */
+    if (_raw === "1" && Array.isArray(data?.body?.items)) {
+      return res.status(200).json({ _debug: data.body.items.slice(0, 2) });
     }
 
     /* 도서 + 한국어 필터 적용 */
