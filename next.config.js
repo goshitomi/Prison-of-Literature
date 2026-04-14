@@ -1,14 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  async redirects() {
-    return [
+  images: {
+    remotePatterns: [
       {
-        source:      "/books",
-        destination: "/",
-        permanent:   true,
+        protocol: "https",
+        hostname: "covers.openlibrary.org",
       },
-    ];
+      {
+        protocol: "https",
+        hostname: "books.google.com",
+      },
+      {
+        protocol: "http",
+        hostname: "books.google.com",
+      },
+    ],
   },
 };
 

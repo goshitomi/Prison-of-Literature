@@ -1,0 +1,59 @@
+/* ── Reset ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+/* ── Body: Roma Publications 기본 ── */
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 1.4em;
+  background: #FFFFFF;
+  color: #000000;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a { color: inherit; text-decoration: none; }
+button { cursor: pointer; font-family: inherit; background: none; border: none; }
+input, select, textarea { font-family: inherit; }
+
+/* ── 페이지 상단 여백 (고정 헤더 40px) ── */
+.page-body { padding-top: 40px; }
+
+/* ── 카드 hover ── */
+.uniform-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+.uniform-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+}
+
+/* ── fade-in ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 400ms ease-out forwards; }
+
+/* ── 스피너 ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── 검색 인풋 cancel 버튼 (Roma 스타일) ── */
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  width: 0.72em;
+  height: 0.72em;
+  background-image:
+    linear-gradient(45deg,  transparent 44%, #000 44%, #000 56%, transparent 56%),
+    linear-gradient(-45deg, transparent 44%, #000 44%, #000 56%, transparent 56%);
+  background-size: 100% 100%;
+  cursor: pointer;
+}
+
+/* ── 스크롤바 ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #DDD; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #BBB; }
