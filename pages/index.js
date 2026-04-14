@@ -61,7 +61,7 @@ function InlineDetail({ book }) {
     ["수인번호 / Call No.", book.callNo  || "—"],
     ["ISBN",               book.isbn    || "—"],
     ["발행연도",           book.year    || "—"],
-    ["판형",               book.prisonSize + (book.height !== "—" ? ` (${book.height})` : "")],
+    ["판형",               book.prisonSize || "—"],
     ["페이지수",           book.pages],
     ["발행지",             book.pubPlace || "—"],
     ["소장위치",           book.holding  || "—"],
@@ -185,12 +185,12 @@ function BookRow({ book, idx, expanded, onToggle }) {
         </td>
 
         {/* 판형 */}
-        <td style={tdStyle({ width: 40 })}>
+        <td style={tdStyle({ width: 56, fontVariantNumeric: "tabular-nums" })}>
           {book.prisonSize}
         </td>
 
-        {/* 수인번호 (monospace — Roma SIZE 패턴) */}
-        <td style={tdStyle({ width: 150, fontFamily: "Courier New, monospace", fontSize: 11 })}>
+        {/* 청구기호 (monospace — Roma SIZE 패턴) */}
+        <td style={tdStyle({ width: 160, fontFamily: "Courier New, monospace", fontSize: 11 })}>
           <span style={{
             display: "block", overflow: "hidden",
             textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -223,7 +223,7 @@ function BookRow({ book, idx, expanded, onToggle }) {
 }
 
 /* ── 리스트뷰 테이블 (Roma Publications 스타일) ── */
-function ListView({ books, sortCol, sortDir, onSort, expandedId, onToggle }) {
+function ListView({ books, pageOffset, sortCol, sortDir, onSort, expandedId, onToggle }) {
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{
@@ -248,8 +248,8 @@ function ListView({ books, sortCol, sortDir, onSort, expandedId, onToggle }) {
             <SortTh col="title"      label="수감자명 / TITLE"    {...{sortCol, sortDir, onSort}} />
             <SortTh col="creator"    label="저자 / ARTIST(S)"    {...{sortCol, sortDir, onSort}} />
             <SortTh col="year"       label="발행 / YEAR"         {...{sortCol, sortDir, onSort}} style={{ width: 52 }} />
-            <SortTh col="prisonSize" label="판형 / SIZE"         {...{sortCol, sortDir, onSort}} style={{ width: 40 }} />
-            <SortTh col="callNo"     label="수인번호"             {...{sortCol, sortDir, onSort}} style={{ width: 150 }} />
+            <SortTh col="prisonSize" label="판형 / SIZE"         {...{sortCol, sortDir, onSort}} style={{ width: 56 }} />
+            <SortTh col="callNo"     label="청구기호"             {...{sortCol, sortDir, onSort}} style={{ width: 160 }} />
             <SortTh col="status"     label="접견상태"             {...{sortCol, sortDir, onSort}} style={{ width: 84 }} />
           </tr>
         </thead>
@@ -258,7 +258,7 @@ function ListView({ books, sortCol, sortDir, onSort, expandedId, onToggle }) {
             <BookRow
               key={book.id}
               book={book}
-              idx={i}
+              idx={pageOffset + i}
               expanded={expandedId === book.id}
               onToggle={onToggle}
             />
@@ -771,6 +771,7 @@ export default function Index() {
             {!loading && display.length > 0 && (
               <ListView
                 books={display}
+                pageOffset={(pn - 1) * PER_PAGE}
                 sortCol={sortCol}
                 sortDir={sortDir}
                 onSort={toggleSort}

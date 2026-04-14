@@ -86,21 +86,23 @@ export default async function handler(req, res) {
     if (koreanOnly === "true") {
       /* 한국 오프라인 단행본 모드
          - KOR_MONO_START 오프셋 적용: 사용자 pageNo 1→API 120001
-         - NLK 페이지당 20개 × 2페이지 병렬 fetch = 최대 40개 → 필터 후 30개 확보 */
-      const baseApiPage = (userPage - 1) * 2 + KOR_MONO_START + 1;
-      const [r1, r2] = await Promise.all([
+         - NLK 페이지당 20개 × 3페이지 병렬 fetch = 최대 60개 → 필터 후 30개 안정 확보
+           (KMO 구간 한국어 도서 밀도 ~85%, 60 × 0.85 = 51 > 30) */
+      const baseApiPage = (userPage - 1) * 3 + KOR_MONO_START + 1;
+      const [r1, r2, r3] = await Promise.all([
         fetchNLKPage(baseApiPage),
         fetchNLKPage(baseApiPage + 1),
+        fetchNLKPage(baseApiPage + 2),
       ]);
 
-      const allItems = [...r1.items, ...r2.items]
+      const allItems = [...r1.items, ...r2.items, ...r3.items]
         .filter(isBookItem)
         .filter(isKoreanItem);
 
       return res.status(200).json({
         header: { resultCode: "00", resultMsg: "NORMAL_CODE" },
         body: {
-          totalCount: r1.totalCount || r2.totalCount,
+          totalCount: r1.totalCount || r2.totalCount || r3.totalCount,
           pageNo:     userPage,
           numOfRows:  requested,
           items:      allItems.slice(0, requested),
