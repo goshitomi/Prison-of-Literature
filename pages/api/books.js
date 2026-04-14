@@ -92,6 +92,20 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: data.header.resultMsg || "NLK API error" });
     }
 
+    /* 개발 전용: 원본 아이템 타입 분포 덤프 */
+    if (req.query._debug === "types" && Array.isArray(data?.body?.items)) {
+      return res.status(200).json({
+        count: data.body.items.length,
+        items: data.body.items.map(it => ({
+          id:       it.BIBLIO_ID,
+          title:    (it.DCTERMS_title || "").slice(0, 30),
+          degree:   it.BIBO_degree || null,
+          typeData: it.NLON_typeOfData || null,
+          rdfTypes: (Array.isArray(it.RDF_type) ? it.RDF_type : [it.RDF_type]).map(t => String(t).split("/").pop()),
+        })),
+      });
+    }
+
     /* 도서 + 한국어 필터 적용 */
     if (Array.isArray(data?.body?.items)) {
       let items = data.body.items.filter(isBookItem);
