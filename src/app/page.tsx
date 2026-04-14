@@ -4,7 +4,7 @@ import { searchGoogleBooks } from "@/shared/lib/google-books-api";
 import { BooksPageClient } from "./_components/books-page-client";
 
 interface PageProps {
-  searchParams: { q?: string; view?: string; page?: string };
+  searchParams: { q?: string; page?: string };
 }
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
@@ -22,9 +22,8 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 }
 
 export default async function BooksPage({ searchParams }: PageProps) {
-  const q        = searchParams.q?.trim() || "";
-  const page     = Math.max(1, parseInt(searchParams.page || "1", 10));
-  const view     = searchParams.view === "grid" ? "grid" : "list";
+  const q    = searchParams.q?.trim() || "";
+  const page = Math.max(1, parseInt(searchParams.page || "1", 10));
 
   /* ── 서버사이드 초기 데이터 패치 (SSR) ── */
   const initialData = q
@@ -36,7 +35,6 @@ export default async function BooksPage({ searchParams }: PageProps) {
       initialBooks={initialData.items}
       initialTotal={initialData.totalCount}
       initialPage={page}
-      initialView={view}
       initialQ={q}
     />
   );

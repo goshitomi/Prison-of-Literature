@@ -8,8 +8,7 @@ const ACCENT     = "#C62828";
 const ROW_BORDER = "#FFE0E0";
 
 export function Header() {
-  const [hoverLogo,  setHoverLogo]  = useState(false);
-  const [hoverAbout, setHoverAbout] = useState(false);
+  const [hoverLogo, setHoverLogo] = useState(false);
 
   return (
     <header
@@ -23,7 +22,6 @@ export function Header() {
         backdropFilter: "blur(8px)",
         display:        "flex",
         alignItems:     "center",
-        justifyContent: "space-between",
         padding:        "0 24px",
       }}
     >
@@ -42,22 +40,6 @@ export function Header() {
         onMouseLeave={() => setHoverLogo(false)}
       >
         Prison of Literature
-      </Link>
-
-      <Link
-        href="/about"
-        style={{
-          fontFamily:    FONT,
-          fontSize:      12,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-          color:         hoverAbout ? ACCENT : "#767676",
-          transition:    "color 0.1s",
-        }}
-        onMouseEnter={() => setHoverAbout(true)}
-        onMouseLeave={() => setHoverAbout(false)}
-      >
-        About
       </Link>
     </header>
   );

@@ -70,6 +70,14 @@ export async function fetchKoreanBooks(
   const allItems = [...r1.items, ...r2.items, ...r3.items]
     .filter(isBookItem)
     .filter(isKoreanItem);
+
+  /* ISBN 있는 책(표지 조회 가능)을 앞으로 정렬 */
+  allItems.sort((a, b) => {
+    const aIsbn = Array.isArray(a.BIBO_isbn) ? a.BIBO_isbn[0] : a.BIBO_isbn;
+    const bIsbn = Array.isArray(b.BIBO_isbn) ? b.BIBO_isbn[0] : b.BIBO_isbn;
+    return (bIsbn ? 1 : 0) - (aIsbn ? 1 : 0);
+  });
+
   return {
     items:      allItems.slice(0, requested).map(parseBook),
     totalCount: r1.totalCount,

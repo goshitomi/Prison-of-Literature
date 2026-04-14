@@ -64,4 +64,4 @@ export interface BookFilters {
 }
 
 /* 정렬 컬럼 */
-export type SortCol = "title" | "creator" | "year" | "prisonSize" | "callNo";
+export type SortCol = "title" | "isbn" | "year" | "prisonSize" | "callNo";

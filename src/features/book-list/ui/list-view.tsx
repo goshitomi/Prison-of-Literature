@@ -55,8 +55,8 @@ function PlainListView({
             >
               No.
             </th>
-            <SortTh col="title"      label="수감자명 / TITLE"  sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
-            <SortTh col="creator"    label="저자 / ARTIST(S)"  sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+            <SortTh col="title"      label="수감자 / TITLE"    sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
+            <SortTh col="isbn"       label="ISBN"               sortCol={sortCol} sortDir={sortDir} onSort={onSort} />
             <SortTh col="year"       label="발행 / YEAR"       sortCol={sortCol} sortDir={sortDir} onSort={onSort} style={{ width: 52 }} />
             <SortTh col="prisonSize" label="판형 / SIZE"       sortCol={sortCol} sortDir={sortDir} onSort={onSort} style={{ width: 56 }} />
             <SortTh col="callNo"     label="청구기호"           sortCol={sortCol} sortDir={sortDir} onSort={onSort} style={{ width: 160 }} />
@@ -123,10 +123,10 @@ function VirtualRow({
           {String(pageOffset + index + 1).padStart(3, "0")}
         </div>
         <div style={{ ...cellBase, fontWeight: "bold" }}>{book.title}</div>
-        <div style={cellBase}>{book.creator || "—"}</div>
+        <div style={cellBase}>{book.isbn || "—"}</div>
         <div style={{ ...cellBase, fontVariantNumeric: "tabular-nums" }}>{book.year || "—"}</div>
         <div style={{ ...cellBase, fontVariantNumeric: "tabular-nums" }}>{book.prisonSize}</div>
-        <div style={{ ...cellBase, fontFamily: '"Courier New", "Apple SD Gothic Neo", monospace', fontSize: 11 }}>
+        <div style={cellBase}>
           {book.callNo || "—"}
         </div>
       </div>
@@ -166,8 +166,8 @@ function VirtualListHeader({
     overflow:     "hidden",
   };
   const cols: { col: SortCol; label: string }[] = [
-    { col: "title",      label: "수감자명 / TITLE" },
-    { col: "creator",    label: "저자 / ARTIST(S)" },
+    { col: "title",      label: "수감자 / TITLE" },
+    { col: "isbn",       label: "ISBN" },
     { col: "year",       label: "발행 / YEAR" },
     { col: "prisonSize", label: "판형 / SIZE" },
     { col: "callNo",     label: "청구기호" },

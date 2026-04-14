@@ -54,7 +54,7 @@ export function BookRow({ book, idx, expanded, onToggle, onHeightChange }: BookR
           {String(idx + 1).padStart(3, "0")}
         </td>
 
-        {/* 수감자명 */}
+        {/* 수감자 */}
         <td style={tdStyle({ fontWeight: "bold", maxWidth: 300 })}>
           <span
             style={{
@@ -70,7 +70,7 @@ export function BookRow({ book, idx, expanded, onToggle, onHeightChange }: BookR
           </span>
         </td>
 
-        {/* 저자 */}
+        {/* ISBN */}
         <td style={tdStyle({ maxWidth: 180 })}>
           <span
             style={{
@@ -80,7 +80,7 @@ export function BookRow({ book, idx, expanded, onToggle, onHeightChange }: BookR
               whiteSpace:   "nowrap",
             }}
           >
-            {book.creator || "—"}
+            {book.isbn || "—"}
           </span>
         </td>
 
@@ -95,13 +95,7 @@ export function BookRow({ book, idx, expanded, onToggle, onHeightChange }: BookR
         </td>
 
         {/* 청구기호 */}
-        <td
-          style={tdStyle({
-            width:      160,
-            fontFamily: '"Courier New", "Apple SD Gothic Neo", "Malgun Gothic", monospace',
-            fontSize:   11,
-          })}
-        >
+        <td style={tdStyle({ width: 160 })}>
           <span
             style={{
               display:      "block",

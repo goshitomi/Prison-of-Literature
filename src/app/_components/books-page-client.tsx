@@ -5,17 +5,17 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { SearchForm } from "@/features/search-books/ui/search-form";
 import { FilterBar } from "@/features/filter-books/ui/filter-bar";
 import { ListView } from "@/features/book-list/ui/list-view";
-import { GridView } from "@/features/book-list/ui/grid-view";
 import { Pager } from "@/shared/ui/pager";
 import { FONT, MUTED, ROW_BORDER, PER_PAGE, ACCENT } from "@/shared/config/design-tokens";
 import { parseBook } from "@/entities/book/model/parse";
 import type { Book, BookFilters, SortCol } from "@/entities/book/model/types";
 
+const EMPTY_FILTERS: BookFilters = { status: [], yearFrom: "", yearTo: "", classification: [] };
+
 interface BooksPageClientProps {
   initialBooks: Book[];
   initialTotal: number;
   initialPage:  number;
-  initialView:  "list" | "grid";
   initialQ:     string;
 }
 
@@ -23,7 +23,6 @@ export function BooksPageClient({
   initialBooks,
   initialTotal,
   initialPage,
-  initialView,
   initialQ,
 }: BooksPageClientProps) {
   const router       = useRouter();
@@ -37,14 +36,14 @@ export function BooksPageClient({
   const [pn,      setPn]      = useState(initialPage);
 
   /* ── UI 상태 ── */
-  const [view,       setView]       = useState<"list" | "grid">(initialView);
   const [q,          setQ]          = useState(initialQ);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [sortCol,    setSortCol]    = useState<SortCol>("title");
   const [sortDir,    setSortDir]    = useState<"asc" | "desc">("asc");
-  const [filters,    setFilters]    = useState<BookFilters>({
-    status: [], yearFrom: "", yearTo: "", classification: [],
-  });
+
+  /* 필터: pending(UI) vs applied(실제 적용) */
+  const [filters,         setFilters]         = useState<BookFilters>(EMPTY_FILTERS);
+  const [appliedFilters,  setAppliedFilters]  = useState<BookFilters>(EMPTY_FILTERS);
 
   /* ── 클라이언트 사이드 데이터 로드 ── */
   const load = useCallback(async (page = 1, searchQ = "") => {
@@ -76,26 +75,28 @@ export function BooksPageClient({
     }
   }, []);
 
-  /* ── 검색 ── */
+  /* ── 검색: 검색 + 필터 동시 적용 ── */
   const searchRef = useRef(q);
   searchRef.current = q;
 
   const handleSearch = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
+      setAppliedFilters(filters);   // 필터를 검색 시점에 적용
       load(1, searchRef.current);
       const params = new URLSearchParams(searchParams?.toString() ?? "");
       if (searchRef.current) params.set("q", searchRef.current);
       else params.delete("q");
       router.replace(`?${params}`, { scroll: false });
     },
-    [load, router, searchParams],
+    [filters, load, router, searchParams],
   );
 
-  /* ── 필터 ── */
+  /* ── 필터 UI 변경 (pending 상태만 업데이트) ── */
   function handleFilterChange(group: string, key: string) {
     if (group === "reset") {
-      setFilters({ status: [], yearFrom: "", yearTo: "", classification: [] });
+      setFilters(EMPTY_FILTERS);
+      setAppliedFilters(EMPTY_FILTERS);
       return;
     }
     if (group === "yearFrom" || group === "yearTo") {
@@ -108,27 +109,18 @@ export function BooksPageClient({
     });
   }
 
-  /* ── 뷰 전환 ── */
-  function switchView(v: "list" | "grid") {
-    setView(v);
-    setExpandedId(null);
-    const params = new URLSearchParams(searchParams?.toString() ?? "");
-    params.set("view", v);
-    router.replace(`?${params}`, { scroll: false });
-  }
-
   /* ── 정렬 ── */
   function toggleSort(col: SortCol) {
     if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortCol(col); setSortDir("asc"); }
   }
 
-  /* ── 클라이언트 필터 + 정렬 ── */
+  /* ── 클라이언트 필터(적용된 것만) + 정렬 ── */
   let display = books.filter((book) => {
-    if (filters.status.length         && !filters.status.includes(book.status))               return false;
-    if (filters.classification.length && !filters.classification.includes(book.classification)) return false;
-    if (filters.yearFrom && parseInt(book.year) < parseInt(filters.yearFrom)) return false;
-    if (filters.yearTo   && parseInt(book.year) > parseInt(filters.yearTo))   return false;
+    if (appliedFilters.status.length         && !appliedFilters.status.includes(book.status))               return false;
+    if (appliedFilters.classification.length && !appliedFilters.classification.includes(book.classification)) return false;
+    if (appliedFilters.yearFrom && parseInt(book.year) < parseInt(appliedFilters.yearFrom)) return false;
+    if (appliedFilters.yearTo   && parseInt(book.year) > parseInt(appliedFilters.yearTo))   return false;
     return true;
   });
   display = [...display].sort((a, b) => {
@@ -140,8 +132,8 @@ export function BooksPageClient({
 
   const totalPages = Math.ceil((total ?? 0) / PER_PAGE);
   const hasActive  =
-    filters.status.length > 0 || filters.classification.length > 0 ||
-    !!filters.yearFrom || !!filters.yearTo;
+    appliedFilters.status.length > 0 || appliedFilters.classification.length > 0 ||
+    !!appliedFilters.yearFrom || !!appliedFilters.yearTo;
 
   const handleToggle = useCallback(
     (id: string) => setExpandedId((prev) => (prev === id ? null : id)),
@@ -172,39 +164,7 @@ export function BooksPageClient({
             )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <SearchForm q={q} onChange={setQ} onSubmit={handleSearch} />
-
-            {/* 뷰 토글 */}
-            <div style={{ display: "flex", gap: 6 }}>
-              {(
-                [
-                  { id: "list" as const, icon: "≡" },
-                  { id: "grid" as const, icon: "⊞" },
-                ] as { id: "list" | "grid"; icon: string }[]
-              ).map(({ id, icon }) => (
-                <button
-                  key={id}
-                  title={id}
-                  onClick={() => switchView(id)}
-                  style={{
-                    fontFamily: FONT,
-                    fontSize:   15,
-                    lineHeight: 1,
-                    background: "none",
-                    border:     "none",
-                    padding:    "0 2px",
-                    color:      view === id ? "#000" : "#CCC",
-                    fontWeight: view === id ? "bold" : "normal",
-                    cursor:     "pointer",
-                    transition: "color 0.1s",
-                  }}
-                >
-                  {icon}
-                </button>
-              ))}
-            </div>
-          </div>
+          <SearchForm q={q} onChange={setQ} onSubmit={handleSearch} />
         </div>
 
         {/* ── 필터 바 ── */}
@@ -224,52 +184,22 @@ export function BooksPageClient({
         )}
 
         {/* ── 리스트뷰 ── */}
-        {view === "list" && (
-          <>
-            {loading && <LoadingRow />}
-            {!loading && !error && display.length === 0 && (
-              <EmptyRow hasActive={hasActive} />
-            )}
-            {!loading && display.length > 0 && (
-              <>
-                <CountRow books={books} display={display} hasActive={hasActive} />
-                <ListView
-                  books={display}
-                  pageOffset={(pn - 1) * PER_PAGE}
-                  sortCol={sortCol}
-                  sortDir={sortDir}
-                  onSort={toggleSort}
-                  expandedId={expandedId}
-                  onToggle={handleToggle}
-                />
-              </>
-            )}
-          </>
+        {loading && <LoadingRow />}
+        {!loading && !error && display.length === 0 && (
+          <EmptyRow hasActive={hasActive} />
         )}
-
-        {/* ── 그리드뷰 ── */}
-        {view === "grid" && (
+        {!loading && display.length > 0 && (
           <>
-            {loading && (
-              <div
-                style={{
-                  fontFamily: FONT, fontSize: 12,
-                  padding: "40px 0", color: MUTED, textAlign: "center",
-                  borderTop: `1px solid ${ROW_BORDER}`,
-                }}
-              >
-                조회 중…
-              </div>
-            )}
-            {!loading && display.length > 0 && (
-              <div style={{ paddingTop: 20 }}>
-                <GridView
-                  books={display}
-                  expandedId={expandedId}
-                  onToggle={handleToggle}
-                />
-              </div>
-            )}
+            <CountRow books={books} display={display} hasActive={hasActive} />
+            <ListView
+              books={display}
+              pageOffset={(pn - 1) * PER_PAGE}
+              sortCol={sortCol}
+              sortDir={sortDir}
+              onSort={toggleSort}
+              expandedId={expandedId}
+              onToggle={handleToggle}
+            />
           </>
         )}
 
