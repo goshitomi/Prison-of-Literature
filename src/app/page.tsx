@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { fetchKoreanBooks } from "@/shared/lib/nlk-api";
+import { fetchIsbnBooks } from "@/shared/lib/nlk-api";
 import { searchGoogleBooks } from "@/shared/lib/google-books-api";
 import { BooksPageClient } from "./_components/books-page-client";
 
 interface PageProps {
-  searchParams: { q?: string; page?: string };
+  searchParams: { q?: string };
 }
 
 export async function generateMetadata({ searchParams }: PageProps): Promise<Metadata> {
@@ -22,19 +22,16 @@ export async function generateMetadata({ searchParams }: PageProps): Promise<Met
 }
 
 export default async function BooksPage({ searchParams }: PageProps) {
-  const q    = searchParams.q?.trim() || "";
-  const page = Math.max(1, parseInt(searchParams.page || "1", 10));
+  const q = searchParams.q?.trim() || "";
 
   /* ── 서버사이드 초기 데이터 패치 (SSR) ── */
   const initialData = q
     ? await searchGoogleBooks(q, 30)
-    : await fetchKoreanBooks(page, 30);
+    : await fetchIsbnBooks(0);
 
   return (
     <BooksPageClient
       initialBooks={initialData.items}
-      initialTotal={initialData.totalCount}
-      initialPage={page}
       initialQ={q}
     />
   );

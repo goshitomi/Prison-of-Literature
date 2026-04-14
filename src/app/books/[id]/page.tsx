@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { fetchNLKBookById } from "@/shared/lib/nlk-api";
 import { fetchGoogleBookById } from "@/shared/lib/google-books-api";
@@ -35,9 +34,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!book) {
     return { title: "수감자 미확인 — Prison of Literature" };
   }
-  const coverImages = book.coverUrl
-    ? [{ url: book.coverUrl, width: 128, height: 180, alt: book.title }]
-    : [];
   return {
     title:       `${book.title} — Prison of Literature`,
     description: book.abstract
@@ -47,7 +43,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title:       book.title,
       description: book.abstract?.slice(0, 160) || `저자: ${book.creator || "—"}`,
       type:        "book",
-      images:      coverImages,
     },
   };
 }
@@ -64,7 +59,6 @@ function BookJsonLd({ book }: { book: Book }) {
     datePublished: book.year || undefined,
     isbn:          book.isbn || undefined,
     description:   book.abstract || undefined,
-    image:         book.coverUrl || undefined,
     inLanguage:    "ko",
     publisher:     book.pubPlace
       ? { "@type": "Organization", name: book.pubPlace }
@@ -83,10 +77,7 @@ export default async function BookDetailPage({ params }: PageProps) {
   const book = await fetchBook(decodeURIComponent(params.id));
   if (!book) notFound();
 
-  const st       = ST[book.status];
-  const coverSrc =
-    book.coverUrl ||
-    (book.isbn ? `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg` : null);
+  const st = ST[book.status];
 
   const metaRows: [string, string][] = [
     ["수인번호 / Call No.", book.callNo   || "—"],
@@ -123,30 +114,7 @@ export default async function BookDetailPage({ params }: PageProps) {
         </div>
 
         {/* ── 헤더 영역 ── */}
-        <div style={{ display: "flex", gap: 32, alignItems: "flex-start", marginBottom: 32 }}>
-          {/* 표지 이미지 */}
-          {coverSrc && (
-            <div
-              style={{
-                flexShrink: 0,
-                width:      128,
-                height:     180,
-                position:   "relative",
-                border:     `1px solid ${ROW_BORDER}`,
-                background: "#F5F5F5",
-              }}
-            >
-              <Image
-                src={coverSrc}
-                alt={book.title}
-                fill
-                sizes="128px"
-                style={{ objectFit: "cover" }}
-                priority={true}
-              />
-            </div>
-          )}
-
+        <div style={{ marginBottom: 32 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* 제목 */}
             <h1

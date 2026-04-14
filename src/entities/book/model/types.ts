@@ -26,7 +26,6 @@ export interface Book {
   charges:        string;
   returnDate:     string;
   visitor:        string;
-  coverUrl?:      string;
 }
 
 /* NLK 원시 응답 아이템 */

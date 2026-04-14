@@ -40,7 +40,6 @@ function parseGoogleBook(vol: any): Book {
     charges:        simCharges(cl),
     returnDate:     st === "CHECKED_OUT" ? simReturn(id) : "",
     visitor:        st === "CHECKED_OUT" ? simVisitor(id) : "",
-    coverUrl:       (info.imageLinks?.thumbnail || "").replace("http://", "https://"),
   };
 }
 

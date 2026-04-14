@@ -57,30 +57,28 @@ export async function fetchNLKPage(apiPage: number): Promise<{ items: NLKRawItem
   }
 }
 
-export async function fetchKoreanBooks(
-  userPage: number,
-  requested = 30,
-): Promise<{ items: Book[]; totalCount: number }> {
-  const baseApiPage = (userPage - 1) * 3 + KOR_MONO_START + 1;
-  const [r1, r2, r3] = await Promise.all([
-    fetchNLKPage(baseApiPage),
-    fetchNLKPage(baseApiPage + 1),
-    fetchNLKPage(baseApiPage + 2),
-  ]);
-  const allItems = [...r1.items, ...r2.items, ...r3.items]
-    .filter(isBookItem)
-    .filter(isKoreanItem);
+/* 무한 스크롤용: ISBN 있는 책만 반환 (accumulation page 기반) */
+const FETCH_PAGES_PER_ACC = 4; // accPage당 NLK API 4페이지 (80 raw → ~30-50 ISBN 책)
 
-  /* ISBN 있는 책(표지 조회 가능)을 앞으로 정렬 */
-  allItems.sort((a, b) => {
-    const aIsbn = Array.isArray(a.BIBO_isbn) ? a.BIBO_isbn[0] : a.BIBO_isbn;
-    const bIsbn = Array.isArray(b.BIBO_isbn) ? b.BIBO_isbn[0] : b.BIBO_isbn;
-    return (bIsbn ? 1 : 0) - (aIsbn ? 1 : 0);
-  });
+export async function fetchIsbnBooks(
+  accPage: number,
+): Promise<{ items: Book[]; hasMore: boolean }> {
+  const baseApiPage = KOR_MONO_START + 1 + accPage * FETCH_PAGES_PER_ACC;
+  const results = await Promise.all(
+    Array.from({ length: FETCH_PAGES_PER_ACC }, (_, i) => fetchNLKPage(baseApiPage + i)),
+  );
+
+  const allRaw = results.flatMap((r) => r.items)
+    .filter(isBookItem)
+    .filter(isKoreanItem)
+    .filter((item) => {
+      const isbn = Array.isArray(item.BIBO_isbn) ? item.BIBO_isbn[0] : item.BIBO_isbn;
+      return Boolean(isbn);
+    });
 
   return {
-    items:      allItems.slice(0, requested).map(parseBook),
-    totalCount: r1.totalCount,
+    items:   allRaw.slice(0, 30).map(parseBook),
+    hasMore: results.some((r) => r.items.length > 0),
   };
 }
 

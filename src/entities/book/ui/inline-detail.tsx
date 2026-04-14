@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
 import { StatusBadge } from "@/shared/ui/status-badge";
 import { FONT, MUTED, ROW_BORDER } from "@/shared/config/design-tokens";
 import type { Book } from "@/entities/book/model/types";
@@ -11,12 +9,6 @@ interface InlineDetailProps {
 }
 
 export function InlineDetail({ book }: InlineDetailProps) {
-  const [imgError, setImgError] = useState(false);
-  const coverSrc =
-    book.coverUrl ||
-    (book.isbn ? `https://covers.openlibrary.org/b/isbn/${book.isbn}-M.jpg` : null);
-  const showCover = Boolean(coverSrc) && !imgError;
-
   const rows: [string, string][] = [
     ["수인번호 / Call No.", book.callNo  || "—"],
     ["ISBN",               book.isbn    || "—"],
@@ -31,19 +23,6 @@ export function InlineDetail({ book }: InlineDetailProps) {
 
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
-      {showCover && coverSrc && (
-        <div style={{ flexShrink: 0, width: 80, position: "relative" }}>
-          <Image
-            src={coverSrc}
-            alt={book.title}
-            width={80}
-            height={112}
-            style={{ display: "block", border: `1px solid ${ROW_BORDER}`, objectFit: "cover" }}
-            onError={() => setImgError(true)}
-            priority={false}
-          />
-        </div>
-      )}
       <div style={{ flex: 1, minWidth: 0 }}>
         {/* 접견상태 */}
         <div
